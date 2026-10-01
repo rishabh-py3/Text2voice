@@ -1,0 +1,72 @@
+[
+  {
+    "id": "1790874769672_337110",
+    "filename": "tts_1790874769672_337110.mp3",
+    "title": "hello world how . are . you .",
+    "full_text": "hello world how . are . you .",
+    "kind": "tts",
+    "voice_or_effect": "Aria",
+    "format": "mp3",
+    "duration": 1.88,
+    "size": 15923,
+    "created_at": "Oct 01, 2026, 10:42 PM",
+    "timestamp": 1790874769,
+    "url": "/api/files/1790874769672_337110/audio"
+  },
+  {
+    "id": "1790874594695_70b4ff",
+    "filename": "tts_1790874594695_70b4ff.mp3",
+    "title": "hello world . How are you , i am fine . whats your name .",
+    "full_text": "hello world . How are you , i am fine . whats your name .",
+    "kind": "tts",
+    "voice_or_effect": "Aria",
+    "format": "mp3",
+    "duration": 5.71,
+    "size": 44409,
+    "created_at": "Oct 01, 2026, 10:39 PM",
+    "timestamp": 1790874594,
+    "url": "/api/files/1790874594695_70b4ff/audio"
+  },
+  {
+    "id": "1790874587019_cd027e",
+    "filename": "tts_1790874587019_cd027e.mp3",
+    "title": "hello world . How are you , i am fine . whats your name .",
+    "full_text": "hello world . How are you , i am fine . whats your name .",
+    "kind": "tts",
+    "voice_or_effect": "Ethan",
+    "format": "mp3",
+    "duration": 3.91,
+    "size": 30436,
+    "created_at": "Oct 01, 2026, 10:39 PM",
+    "timestamp": 1790874587,
+    "url": "/api/files/1790874587019_cd027e/audio"
+  },
+  {
+    "id": "1790874264771_135530",
+    "filename": "tts_1790874264771_135530.mp3",
+    "title": "hello world how are you. i am dfine ! tnak you . hello. hwllo.",
+    "full_text": "hello world how are you. i am dfine ! tnak you . hello. hwllo.",
+    "kind": "tts",
+    "voice_or_effect": "Aria",
+    "format": "mp3",
+    "duration": 5.11,
+    "size": 42415,
+    "created_at": "Oct 01, 2026, 10:34 PM",
+    "timestamp": 1790874264,
+    "url": "/api/files/1790874264771_135530/audio"
+  },
+  {
+    "id": "1790874248232_dbdfc0",
+    "filename": "tts_1790874248232_dbdfc0.mp3",
+    "title": "hello world how are you. i am dfine",
+    "full_text": "hello world how are you. i am dfine",
+    "kind": "tts",
+    "voice_or_effect": "Aria",
+    "format": "mp3",
+    "duration": 2.88,
+    "size": 23517,
+    "created_at": "Oct 01, 2026, 10:34 PM",
+    "timestamp": 1790874248,
+    "url": "/api/files/1790874248232_dbdfc0/audio"
+  }
+]
