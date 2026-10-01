@@ -69,6 +69,17 @@ def pick_engine() -> str:
     )
 
 
+_PIPER_VOICE_CACHE = {}
+
+
+def _get_piper_voice(model_path: Path):
+    path_str = str(model_path)
+    if path_str not in _PIPER_VOICE_CACHE:
+        from piper import PiperVoice
+        _PIPER_VOICE_CACHE[path_str] = PiperVoice.load(path_str)
+    return _PIPER_VOICE_CACHE[path_str]
+
+
 def synth_segment(text: str, voice: str, engine: str, out_wav: Path, speed: float = 1.0) -> None:
     if voice not in VOICES:
         raise AudioError(f"Unknown voice '{voice}'.")
@@ -83,24 +94,42 @@ def synth_segment(text: str, voice: str, engine: str, out_wav: Path, speed: floa
         model = VOICES_DIR / f"{VOICES[voice]['piper']}.onnx"
         if not model.exists():
             raise AudioError(f"Voice file missing: {model.name}. Run ./setup_voices.sh")
-        raw = out_wav.with_suffix(".raw.wav")
-        # Native neural phoneme duration: length-scale is inverse of speed
-        # Slower speed -> higher length_scale (natural slow vowels without robotic atempo distortion)
-        # Faster speed -> lower length_scale (natural fast articulation)
+        
         length_scale = max(0.4, min(2.5, 1.0 / max(speed, 0.1)))
-        cmd = [
-            sys.executable, "-m", "piper",
-            "-m", str(model),
-            "--length-scale", f"{length_scale:.3f}",
-            "-f", str(raw),
-        ]
-        proc = subprocess.run(
-            cmd,
-            input=text, capture_output=True, text=True, timeout=120,
-        )
-        if proc.returncode != 0:
-            raise AudioError(f"Piper failed: {proc.stderr.strip()[-300:]}")
-        to_wav(raw, out_wav)
+        
+        try:
+            import wave
+            from piper import SynthesisConfig
+            piper_voice = _get_piper_voice(model)
+            syn_cfg = SynthesisConfig(length_scale=length_scale)
+            chunks = list(piper_voice.synthesize(text, syn_config=syn_cfg))
+            if not chunks:
+                raise RuntimeError("Piper generated empty audio chunks.")
+            
+            raw = out_wav.with_suffix(".raw.wav")
+            with wave.open(str(raw), "wb") as w:
+                w.setnchannels(chunks[0].sample_channels)
+                w.setsampwidth(chunks[0].sample_width)
+                w.setframerate(chunks[0].sample_rate)
+                for c in chunks:
+                    w.writeframes(c.audio_int16_bytes)
+            to_wav(raw, out_wav)
+        except Exception:
+            # Fallback to subprocess CLI if in-memory fails for any reason
+            raw = out_wav.with_suffix(".raw.wav")
+            cmd = [
+                sys.executable, "-m", "piper",
+                "-m", str(model),
+                "--length-scale", f"{length_scale:.3f}",
+                "-f", str(raw),
+            ]
+            proc = subprocess.run(
+                cmd,
+                input=text, capture_output=True, text=True, timeout=120,
+            )
+            if proc.returncode != 0:
+                raise AudioError(f"Piper failed: {proc.stderr.strip()[-300:]}")
+            to_wav(raw, out_wav)
 
     elif engine == "say":
         aiff = out_wav.with_suffix(".aiff")
