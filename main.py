@@ -1,17 +1,19 @@
-"""AI Voice Studio backend. Run: uvicorn main:app --reload then open http://localhost:8000"""
+"""AI Voice Studio backend with Multi-User Authentication and Private File Scoping.
+Run: uvicorn main:app --reload then open http://localhost:8000
+"""
 import datetime
-import json
 import os
 import platform
 import shutil
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+import db
 import service
 from audio_utils import EFFECTS, AudioError
 from engines import VOICES, VOICES_DIR, pick_engine
@@ -20,7 +22,6 @@ BASE = Path(__file__).parent
 STATIC = BASE / "static"
 OUTPUTS_DIR = BASE / "outputs"
 OUTPUTS_DIR.mkdir(exist_ok=True)
-METADATA_FILE = OUTPUTS_DIR / "metadata.json"
 
 MAX_UPLOAD = 10 * 1024 * 1024  # 10 MB, matches the UI
 ALLOWED_EXT = {".mp3", ".wav", ".m4a", ".webm", ".ogg", ".mp4", ".aac", ".flac"}
@@ -38,44 +39,79 @@ RUNTIME_SETTINGS = {
 }
 
 
-def _load_metadata() -> list[dict]:
-    if not METADATA_FILE.exists():
-        return []
-    try:
-        return json.loads(METADATA_FILE.read_text(encoding="utf-8"))
-    except Exception:
-        return []
+@app.on_event("startup")
+def on_startup():
+    db.init_db()
 
 
-def _save_metadata(records: list[dict]):
-    METADATA_FILE.write_text(json.dumps(records, indent=2), encoding="utf-8")
+# ---------------- Session & Auth Helpers ----------------
+
+def get_current_session(request: Request) -> dict:
+    """Retrieve existing session from Header, Cookie, or Query Param, or create a guest session."""
+    auth_header = request.headers.get("Authorization", "")
+    token = None
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:].strip()
+    elif request.headers.get("X-Session-Token"):
+        token = request.headers.get("X-Session-Token")
+    elif request.cookies.get("session_token"):
+        token = request.cookies.get("session_token")
+    elif "token" in request.query_params:
+        token = request.query_params["token"]
+
+    session = db.get_session(token) if token else None
+    if not session:
+        new_token, guest_info = db.create_guest_session()
+        session = {
+            "token": new_token,
+            "user_id": guest_info["id"],
+            "username": guest_info["username"],
+            "is_guest": True,
+            "is_new": True,
+        }
+    return session
 
 
-def _record_output(result: service.AudioResult, title: str, kind: str, voice_or_effect: str) -> dict:
+def set_session_cookie(response: Response, token: str):
+    response.set_cookie(
+        key="session_token",
+        value=token,
+        max_age=60 * 60 * 24 * 30,  # 30 days
+        httponly=False,
+        samesite="lax",
+    )
+    response.headers["X-Session-Token"] = token
+
+
+def _record_output(result: service.AudioResult, title: str, kind: str, voice_or_effect: str, user_id: str) -> dict:
     file_id = f"{int(datetime.datetime.now().timestamp() * 1000)}_{uuid.uuid4().hex[:6]}"
     filename = f"{kind}_{file_id}.{result.fmt}"
     file_path = OUTPUTS_DIR / filename
     file_path.write_bytes(result.data)
 
-    record = {
-        "id": file_id,
-        "filename": filename,
-        "title": title[:80] + ("…" if len(title) > 80 else ""),
-        "full_text": title if kind == "tts" else "",
-        "kind": kind,  # "tts" or "vts"
-        "voice_or_effect": voice_or_effect,
-        "format": result.fmt,
-        "duration": round(result.duration, 2),
-        "size": len(result.data),
-        "created_at": datetime.datetime.now().strftime("%b %d, %Y, %I:%M %p"),
-        "timestamp": int(datetime.datetime.now().timestamp()),
-        "url": f"/api/files/{file_id}/audio",
-    }
+    created_at = datetime.datetime.now().strftime("%b %d, %Y, %I:%M %p")
+    timestamp = int(datetime.datetime.now().timestamp())
 
-    records = _load_metadata()
-    records.insert(0, record)
-    _save_metadata(records)
-    return record
+    return db.save_file_record(
+        file_id=file_id,
+        user_id=user_id,
+        filename=filename,
+        title=title,
+        full_text=title if kind == "tts" else "",
+        kind=kind,
+        voice_or_effect=voice_or_effect,
+        fmt=result.fmt,
+        duration=result.duration,
+        size=len(result.data),
+        created_at=created_at,
+        timestamp=timestamp,
+    )
+
+
+class AuthRequest(BaseModel):
+    username: str
+    password: str
+    guest_token: str | None = None
 
 
 class TTSRequest(BaseModel):
@@ -94,7 +130,7 @@ class SettingsUpdate(BaseModel):
     pause_duration: float | None = None
 
 
-def _audio_response(result: service.AudioResult, name: str, file_id: str | None = None) -> Response:
+def _audio_response(result: service.AudioResult, name: str, file_id: str | None = None, token: str | None = None) -> Response:
     headers = {
         "X-Audio-Duration": f"{result.duration:.2f}",
         "Content-Disposition": f'inline; filename="{name}.{result.fmt}"',
@@ -102,6 +138,8 @@ def _audio_response(result: service.AudioResult, name: str, file_id: str | None 
     }
     if file_id:
         headers["X-File-Id"] = file_id
+    if token:
+        headers["X-Session-Token"] = token
     return Response(
         content=result.data,
         media_type=result.mimetype,
@@ -128,6 +166,103 @@ def health():
         "python": platform.python_version(),
     }
 
+
+# ---------------- Authentication Endpoints ----------------
+
+@app.get("/api/auth/me")
+def auth_me(request: Request, response: Response):
+    session = get_current_session(request)
+    if session.get("is_new"):
+        set_session_cookie(response, session["token"])
+    return {
+        "ok": True,
+        "token": session["token"],
+        "user": {
+            "id": session["user_id"],
+            "username": session["username"],
+            "is_guest": session["is_guest"],
+        }
+    }
+
+
+@app.post("/api/auth/register")
+def auth_register(req: AuthRequest, request: Request, response: Response):
+    try:
+        user = db.create_user(req.username, req.password)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+    # Migrate guest files into new permanent account
+    current_session = get_current_session(request)
+    if current_session.get("is_guest"):
+        db.migrate_guest_files(current_session["user_id"], user["id"])
+    if req.guest_token:
+        guest_sess = db.get_session(req.guest_token)
+        if guest_sess and guest_sess.get("is_guest"):
+            db.migrate_guest_files(guest_sess["user_id"], user["id"])
+
+    token = db.create_session(user["id"], user["username"], is_guest=False)
+    set_session_cookie(response, token)
+    return {
+        "ok": True,
+        "token": token,
+        "user": {
+            "id": user["id"],
+            "username": user["username"],
+            "is_guest": False,
+        }
+    }
+
+
+@app.post("/api/auth/login")
+def auth_login(req: AuthRequest, request: Request, response: Response):
+    user = db.authenticate_user(req.username, req.password)
+    if not user:
+        raise HTTPException(401, "Invalid username or password.")
+
+    # Migrate current guest session files if any into user account
+    current_session = get_current_session(request)
+    if current_session.get("is_guest"):
+        db.migrate_guest_files(current_session["user_id"], user["id"])
+    if req.guest_token:
+        guest_sess = db.get_session(req.guest_token)
+        if guest_sess and guest_sess.get("is_guest"):
+            db.migrate_guest_files(guest_sess["user_id"], user["id"])
+
+    token = db.create_session(user["id"], user["username"], is_guest=False)
+    set_session_cookie(response, token)
+    return {
+        "ok": True,
+        "token": token,
+        "user": {
+            "id": user["id"],
+            "username": user["username"],
+            "is_guest": False,
+        }
+    }
+
+
+@app.post("/api/auth/logout")
+def auth_logout(request: Request, response: Response):
+    auth_header = request.headers.get("Authorization", "")
+    token = None
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:].strip()
+    elif request.cookies.get("session_token"):
+        token = request.cookies.get("session_token")
+    if token:
+        db.delete_session(token)
+
+    new_token, guest_info = db.create_guest_session()
+    set_session_cookie(response, new_token)
+    return {
+        "ok": True,
+        "token": new_token,
+        "user": guest_info,
+    }
+
+
+# ---------------- Synthesis Endpoints ----------------
 
 @app.get("/api/voices")
 def voices():
@@ -162,7 +297,11 @@ def effects():
 
 
 @app.post("/api/text-to-speech")
-def text_to_speech(req: TTSRequest):
+def text_to_speech(req: TTSRequest, request: Request, response: Response):
+    session = get_current_session(request)
+    if session.get("is_new"):
+        set_session_cookie(response, session["token"])
+
     pause_sec = req.pause_duration if req.pause_duration is not None else RUNTIME_SETTINGS.get("pause_duration", 0.6)
     try:
         result = service.synthesize(req.text, req.voice, req.speed, req.format, pause_seconds=pause_sec)
@@ -171,8 +310,8 @@ def text_to_speech(req: TTSRequest):
     except AudioError as e:
         raise HTTPException(503, str(e))
 
-    rec = _record_output(result, req.text, "tts", req.voice)
-    return _audio_response(result, f"{req.voice}-voice", file_id=rec["id"])
+    rec = _record_output(result, req.text, "tts", req.voice, user_id=session["user_id"])
+    return _audio_response(result, f"{req.voice}-voice", file_id=rec["id"], token=session["token"])
 
 
 _sample_cache: dict[str, service.AudioResult] = {}
@@ -195,10 +334,16 @@ def voice_sample(name: str):
 
 @app.post("/api/voice-convert")
 async def voice_convert(
+    request: Request,
+    response: Response,
     file: UploadFile = File(...),
     effect: str = Form("robot"),
     format: str = Form("mp3"),
 ):
+    session = get_current_session(request)
+    if session.get("is_new"):
+        set_session_cookie(response, session["token"])
+
     ext = Path(file.filename or "").suffix.lower()
     if ext and ext not in ALLOWED_EXT:
         raise HTTPException(400, f"Unsupported file type '{ext}'.")
@@ -215,23 +360,26 @@ async def voice_convert(
         raise HTTPException(422, f"Could not process that audio: {e}")
 
     title = file.filename or f"recording-{datetime.datetime.now().strftime('%H%M%S')}"
-    rec = _record_output(result, title, "vts", effect)
-    return _audio_response(result, "converted-voice", file_id=rec["id"])
+    rec = _record_output(result, title, "vts", effect, user_id=session["user_id"])
+    return _audio_response(result, "converted-voice", file_id=rec["id"], token=session["token"])
 
 
-# ---------------- Files Management ----------------
+# ---------------- Private User Files Management ----------------
 
 @app.get("/api/files")
-def list_files():
-    return _load_metadata()
+def list_files(request: Request, response: Response):
+    session = get_current_session(request)
+    if session.get("is_new"):
+        set_session_cookie(response, session["token"])
+    return db.list_user_files(session["user_id"])
 
 
 @app.get("/api/files/{file_id}/audio")
-def get_file_audio(file_id: str):
-    records = _load_metadata()
-    match = next((r for r in records if r["id"] == file_id), None)
+def get_file_audio(file_id: str, request: Request):
+    session = get_current_session(request)
+    match = db.get_file_record(file_id, user_id=session["user_id"])
     if not match:
-        raise HTTPException(404, "File not found")
+        raise HTTPException(404, "File not found or private")
     path = OUTPUTS_DIR / match["filename"]
     if not path.exists():
         raise HTTPException(404, "File missing from disk")
@@ -245,11 +393,11 @@ def get_file_audio(file_id: str):
 
 
 @app.get("/api/files/{file_id}/download")
-def download_file(file_id: str):
-    records = _load_metadata()
-    match = next((r for r in records if r["id"] == file_id), None)
+def download_file(file_id: str, request: Request):
+    session = get_current_session(request)
+    match = db.get_file_record(file_id, user_id=session["user_id"])
     if not match:
-        raise HTTPException(404, "File not found")
+        raise HTTPException(404, "File not found or private")
     path = OUTPUTS_DIR / match["filename"]
     if not path.exists():
         raise HTTPException(404, "File missing from disk")
@@ -263,38 +411,39 @@ def download_file(file_id: str):
 
 
 @app.delete("/api/files/{file_id}")
-def delete_file(file_id: str):
-    records = _load_metadata()
-    match = next((r for r in records if r["id"] == file_id), None)
-    if not match:
-        raise HTTPException(404, "File not found")
-    path = OUTPUTS_DIR / match["filename"]
+def delete_file(file_id: str, request: Request):
+    session = get_current_session(request)
+    filename = db.delete_user_file(file_id, session["user_id"])
+    if not filename:
+        raise HTTPException(404, "File not found or private")
+    path = OUTPUTS_DIR / filename
     if path.exists():
         try:
             path.unlink()
         except OSError:
             pass
-    records = [r for r in records if r["id"] != file_id]
-    _save_metadata(records)
     return {"ok": True, "deleted": file_id}
 
 
 @app.post("/api/files/clear")
-def clear_files():
-    for f in OUTPUTS_DIR.glob("*.*"):
-        if f.name != "metadata.json":
+def clear_files(request: Request):
+    session = get_current_session(request)
+    filenames = db.clear_all_user_files(session["user_id"])
+    for fname in filenames:
+        path = OUTPUTS_DIR / fname
+        if path.exists():
             try:
-                f.unlink()
+                path.unlink()
             except OSError:
                 pass
-    _save_metadata([])
     return {"ok": True}
 
 
 # ---------------- Settings API ----------------
 
 @app.get("/api/settings")
-def get_settings():
+def get_settings(request: Request):
+    session = get_current_session(request)
     try:
         active_engine = pick_engine()
     except AudioError as e:
@@ -310,7 +459,7 @@ def get_settings():
             "size_mb": round(onnx_file.stat().st_size / (1024 * 1024), 1) if onnx_file.exists() else 0,
         })
 
-    records = _load_metadata()
+    records = db.list_user_files(session["user_id"])
     total_bytes = sum(r.get("size", 0) for r in records)
 
     return {
@@ -325,6 +474,11 @@ def get_settings():
         "installed_voices": voices_info,
         "files_count": len(records),
         "files_size_bytes": total_bytes,
+        "user": {
+            "id": session["user_id"],
+            "username": session["username"],
+            "is_guest": session["is_guest"],
+        }
     }
 
 
@@ -356,4 +510,3 @@ def update_settings(update: SettingsUpdate):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
-

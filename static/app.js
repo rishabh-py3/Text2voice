@@ -86,6 +86,260 @@
     }, 1200);
   }
 
+  /* ---------- 0. AUTHENTICATION & PRIVATE SESSION ---------- */
+  let currentUser = null;
+  const TOKEN_KEY = "voice_studio_token";
+
+  function getStoredToken() {
+    return localStorage.getItem(TOKEN_KEY) || "";
+  }
+
+  function setStoredToken(token) {
+    if (token) {
+      localStorage.setItem(TOKEN_KEY, token);
+    } else {
+      localStorage.removeItem(TOKEN_KEY);
+    }
+  }
+
+  function getAuthHeaders(extra = {}) {
+    const headers = { ...extra };
+    const token = getStoredToken();
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+      headers["X-Session-Token"] = token;
+    }
+    return headers;
+  }
+
+  function saveTokenFromResponse(res) {
+    if (!res || !res.headers) return;
+    const token = res.headers.get("X-Session-Token");
+    if (token) {
+      setStoredToken(token);
+    }
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str || "";
+    return div.innerHTML;
+  }
+
+  const topbarAuth = $("#topbarAuth");
+  const authModal = $("#authModal");
+  const closeAuthModalBtn = $("#closeAuthModalBtn");
+  const authTabLogin = $("#authTabLogin");
+  const authTabRegister = $("#authTabRegister");
+  const loginForm = $("#loginForm");
+  const registerForm = $("#registerForm");
+  const loginError = $("#loginError");
+  const registerError = $("#registerError");
+  const loginUsername = $("#loginUsername");
+  const loginPassword = $("#loginPassword");
+  const registerUsername = $("#registerUsername");
+  const registerPassword = $("#registerPassword");
+  const filesPrivacyTitle = $("#filesPrivacyTitle");
+  const filesPrivacySub = $("#filesPrivacySub");
+  const filesGuestPrompt = $("#filesGuestPrompt");
+  const filesSignInPromptBtn = $("#filesSignInPromptBtn");
+
+  function openAuthModal(mode = "login") {
+    if (!authModal) return;
+    authModal.classList.add("active");
+    if (loginError) loginError.style.display = "none";
+    if (registerError) registerError.style.display = "none";
+    if (mode === "register" && authTabRegister) {
+      authTabRegister.click();
+    } else if (authTabLogin) {
+      authTabLogin.click();
+    }
+  }
+
+  function closeAuthModal() {
+    if (authModal) authModal.classList.remove("active");
+  }
+
+  if (closeAuthModalBtn) {
+    closeAuthModalBtn.addEventListener("click", closeAuthModal);
+  }
+  if (authModal) {
+    authModal.addEventListener("click", (e) => {
+      if (e.target === authModal) closeAuthModal();
+    });
+  }
+
+  if (authTabLogin && authTabRegister) {
+    authTabLogin.addEventListener("click", () => {
+      authTabLogin.classList.add("active");
+      authTabRegister.classList.remove("active");
+      loginForm.style.display = "flex";
+      registerForm.style.display = "none";
+      loginError.style.display = "none";
+      loginUsername.focus();
+    });
+
+    authTabRegister.addEventListener("click", () => {
+      authTabRegister.classList.add("active");
+      authTabLogin.classList.remove("active");
+      registerForm.style.display = "flex";
+      loginForm.style.display = "none";
+      registerError.style.display = "none";
+      registerUsername.focus();
+    });
+  }
+
+  if (filesSignInPromptBtn) {
+    filesSignInPromptBtn.addEventListener("click", () => openAuthModal("login"));
+  }
+
+  function renderAuthState() {
+    if (!topbarAuth) return;
+    if (currentUser && !currentUser.is_guest) {
+      // Logged in user
+      topbarAuth.innerHTML = `
+        <div class="auth-badge user">
+          <span>👤</span>
+          <span>${escapeHtml(currentUser.username)}</span>
+          <span class="auth-dot" title="Authenticated"></span>
+        </div>
+        <button class="auth-logout-btn" id="authLogoutBtn">Log Out</button>
+      `;
+      const logoutBtn = $("#authLogoutBtn");
+      if (logoutBtn) logoutBtn.addEventListener("click", handleLogout);
+
+      if (filesPrivacyTitle) filesPrivacyTitle.textContent = `Private Vault (${currentUser.username})`;
+      if (filesPrivacySub) filesPrivacySub.textContent = "Your audio files are permanently saved to your account and only visible to you.";
+      if (filesGuestPrompt) filesGuestPrompt.style.display = "none";
+    } else {
+      // Guest
+      topbarAuth.innerHTML = `
+        <div class="auth-badge">
+          <span>👤</span>
+          <span>Guest</span>
+        </div>
+        <button class="auth-open-btn" id="openAuthModalBtn">🔑 Sign In / Register</button>
+      `;
+      const openBtn = $("#openAuthModalBtn");
+      if (openBtn) openBtn.addEventListener("click", () => openAuthModal("login"));
+
+      if (filesPrivacyTitle) filesPrivacyTitle.textContent = "Private Session Vault";
+      if (filesPrivacySub) filesPrivacySub.textContent = "Audio files are private to your current browser session. Sign in to keep them permanently!";
+      if (filesGuestPrompt) filesGuestPrompt.style.display = "block";
+    }
+  }
+
+  async function checkAuthSession() {
+    try {
+      const res = await fetch("/api/auth/me", { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        currentUser = data.user;
+        if (data.token) setStoredToken(data.token);
+      }
+    } catch (e) {
+      console.warn("Auth check error:", e);
+    }
+    renderAuthState();
+  }
+
+  // Handle Login
+  if (loginForm) {
+    loginForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      loginError.style.display = "none";
+      const submitBtn = $("#loginSubmitBtn");
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Signing in…";
+
+      try {
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: getAuthHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify({
+            username: loginUsername.value.trim(),
+            password: loginPassword.value,
+            guest_token: getStoredToken(),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Login failed");
+
+        setStoredToken(data.token);
+        currentUser = data.user;
+        renderAuthState();
+        closeAuthModal();
+        loginForm.reset();
+        showToast(`Welcome back, ${currentUser.username}!`);
+        loadFiles();
+      } catch (err) {
+        loginError.textContent = err.message;
+        loginError.style.display = "block";
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Sign In";
+      }
+    });
+  }
+
+  // Handle Register
+  if (registerForm) {
+    registerForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      registerError.style.display = "none";
+      const submitBtn = $("#registerSubmitBtn");
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Creating account…";
+
+      try {
+        const res = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: getAuthHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify({
+            username: registerUsername.value.trim(),
+            password: registerPassword.value,
+            guest_token: getStoredToken(),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Registration failed");
+
+        setStoredToken(data.token);
+        currentUser = data.user;
+        renderAuthState();
+        closeAuthModal();
+        registerForm.reset();
+        showToast(`Account created! Welcome, ${currentUser.username}.`);
+        loadFiles();
+      } catch (err) {
+        registerError.textContent = err.message;
+        registerError.style.display = "block";
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Create Free Account";
+      }
+    });
+  }
+
+  // Handle Logout
+  async function handleLogout() {
+    if (!confirm("Are you sure you want to log out?")) return;
+    try {
+      const res = await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: getAuthHeaders(),
+      });
+      const data = await res.json();
+      if (data.token) setStoredToken(data.token);
+      currentUser = data.user;
+      renderAuthState();
+      showToast("Logged out. Switched to private guest session.");
+      loadFiles();
+    } catch (err) {
+      showToast("Error during logout", true);
+    }
+  }
+
   /* ---------- 1. NAVIGATION & TAB SWITCHING ---------- */
   const tabTitles = {
     tts: {
@@ -201,6 +455,22 @@
     textInput.focus();
     textInput.selectionStart = textInput.selectionEnd = start + tag.length;
     counter.textContent = `${textInput.value.length} / 5000`;
+  });
+
+  // Insert emotion tags
+  $$(".emotion-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const tag = chip.dataset.tag || "[excited]";
+      const start = textInput.selectionStart || 0;
+      const end = textInput.selectionEnd || 0;
+      const val = textInput.value;
+      const needsLeadingSpace = start > 0 && val[start - 1] !== " " && val[start - 1] !== "[";
+      const insertStr = (needsLeadingSpace ? " " : "") + tag + " ";
+      textInput.value = val.substring(0, start) + insertStr + val.substring(end);
+      textInput.focus();
+      textInput.selectionStart = textInput.selectionEnd = start + insertStr.length;
+      counter.textContent = `${textInput.value.length} / 5000`;
+    });
   });
 
   // Voice selector in TTS
@@ -351,7 +621,7 @@
     try {
       const res = await fetch("/api/text-to-speech", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           text,
           voice: selectedVoice,
@@ -360,6 +630,7 @@
           pause_duration: parseFloat(pauseRange.value),
         }),
       });
+      saveTokenFromResponse(res);
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -507,7 +778,12 @@
       form.append("effect", quickEffectSelect.value);
       form.append("format", formatSelect.value);
 
-      const res = await fetch("/api/voice-convert", { method: "POST", body: form });
+      const res = await fetch("/api/voice-convert", {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: form,
+      });
+      saveTokenFromResponse(res);
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
         throw new Error(err.detail || "Conversion failed");
@@ -778,7 +1054,12 @@
       form.append("effect", vtsSelectedEffect);
       form.append("format", vtsFormatSelect.value);
 
-      const res = await fetch("/api/voice-convert", { method: "POST", body: form });
+      const res = await fetch("/api/voice-convert", {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: form,
+      });
+      saveTokenFromResponse(res);
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
         throw new Error(err.detail || "Voice conversion failed");
@@ -807,7 +1088,8 @@
   async function loadFiles() {
     filesListContainer.innerHTML = '<div style="padding: 30px; text-align: center; color: var(--muted);">Loading files…</div>';
     try {
-      const res = await fetch("/api/files");
+      const res = await fetch("/api/files", { headers: getAuthHeaders() });
+      saveTokenFromResponse(res);
       if (!res.ok) throw new Error("Failed to load files");
       allFiles = await res.json();
       renderFiles();
@@ -845,11 +1127,16 @@
       return;
     }
 
+    const token = getStoredToken();
+    const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : "";
+
     filesListContainer.innerHTML = "";
     filtered.forEach((file) => {
       const isTts = file.kind === "tts";
       const badgeIcon = isTts ? "🔊" : "⚡";
       const sizeKb = file.size ? `${(file.size / 1024).toFixed(1)} KB` : "";
+      const downloadUrl = `/api/files/${file.id}/download${tokenQuery}`;
+      const audioUrl = `/api/files/${file.id}/audio${tokenQuery}`;
 
       const item = document.createElement("div");
       item.className = "file-item";
@@ -872,8 +1159,8 @@
         </div>
 
         <div class="file-actions">
-          <button class="file-btn file-play-btn" data-audio-url="${file.url}">▶ Play</button>
-          <a href="/api/files/${file.id}/download" download="${file.filename}" class="file-btn" style="text-decoration: none;">↓ Download</a>
+          <button class="file-btn file-play-btn" data-audio-url="${audioUrl}">▶ Play</button>
+          <a href="${downloadUrl}" download="${file.filename}" class="file-btn" style="text-decoration: none;">↓ Download</a>
           ${file.full_text ? `<button class="file-btn file-load-btn" data-text="${encodeURIComponent(file.full_text)}">Load in Studio</button>` : ""}
           <button class="file-btn delete file-delete-btn" data-id="${file.id}">🗑</button>
         </div>
@@ -883,7 +1170,7 @@
       const playItemBtn = item.querySelector(".file-play-btn");
       playItemBtn.addEventListener("click", () => {
         stopAllAudio();
-        const aud = new Audio(file.url);
+        const aud = new Audio(audioUrl);
         registerAudio(aud);
         playItemBtn.textContent = "⏸ Pause";
         aud.play().catch(() => (playItemBtn.textContent = "▶ Play"));
@@ -914,7 +1201,10 @@
       delBtn.addEventListener("click", async () => {
         if (!confirm("Are you sure you want to delete this audio file?")) return;
         try {
-          const res = await fetch(`/api/files/${file.id}`, { method: "DELETE" });
+          const res = await fetch(`/api/files/${file.id}`, {
+            method: "DELETE",
+            headers: getAuthHeaders(),
+          });
           if (!res.ok) throw new Error("Delete failed");
           allFiles = allFiles.filter((f) => f.id !== file.id);
           renderFiles();
@@ -942,13 +1232,16 @@
 
   clearAllFilesBtn.addEventListener("click", async () => {
     if (!allFiles.length) return showToast("No files to clear", true);
-    if (!confirm("Are you sure you want to delete ALL saved audio files? This cannot be undone.")) return;
+    if (!confirm("Are you sure you want to delete ALL your saved audio files? This cannot be undone.")) return;
     try {
-      const res = await fetch("/api/files/clear", { method: "POST" });
+      const res = await fetch("/api/files/clear", {
+        method: "POST",
+        headers: getAuthHeaders(),
+      });
       if (!res.ok) throw new Error("Failed to clear files");
       allFiles = [];
       renderFiles();
-      showToast("All files cleared");
+      showToast("All your saved files cleared");
     } catch (err) {
       showToast(err.message, true);
     }
@@ -1085,7 +1378,8 @@
 
   async function loadSettings() {
     try {
-      const res = await fetch("/api/settings");
+      const res = await fetch("/api/settings", { headers: getAuthHeaders() });
+      saveTokenFromResponse(res);
       if (!res.ok) throw new Error("Could not load settings");
       const data = await res.json();
 
@@ -1153,7 +1447,7 @@
 
       const res = await fetch("/api/settings", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(payload),
       });
 
@@ -1183,7 +1477,9 @@
     }
   });
 
-  // Initial status check
+  // Initial auth session check and status check
+  checkAuthSession();
+
   fetch("/api/health")
     .then((r) => r.json())
     .then((d) => {

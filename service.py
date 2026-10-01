@@ -92,10 +92,94 @@ def humanize_text(text: str) -> str:
     return text
 
 
+EMOTION_TAGS = {
+    "excited": ["excited", "happy", "cheerful", "joy", "enthusiastic", "thrilled"],
+    "sad": ["sad", "sorrow", "gloomy", "depressed", "melancholy", "crying"],
+    "angry": ["angry", "furious", "mad", "shouting", "aggressive"],
+    "whisper": ["whisper", "whispering", "soft", "quiet", "secret"],
+    "calm": ["calm", "relaxed", "peaceful", "soothing", "gentle"],
+    "dramatic": ["dramatic", "epic", "cinematic", "storyteller"],
+    "fear": ["fear", "scared", "nervous", "terrified", "trembling", "anxious"],
+    "serious": ["serious", "formal", "grave", "authoritative"],
+    "curious": ["curious", "inquisitive", "puzzled"],
+}
+
+ALIAS_TO_EMO = {}
+for emo, aliases in EMOTION_TAGS.items():
+    for a in aliases:
+        ALIAS_TO_EMO[a] = emo
+
+TAG_RE = re.compile(r"\[([a-zA-Z_\-]+)\]")
+
+
+def parse_speech_script(text: str) -> list[tuple[str, any]]:
+    """Parse text with inline emotion tags [excited] and pauses [pause] into structured segments.
+    Supports both postfix (e.g. 'happy birthday[excited]') and prefix (e.g. '[excited] happy birthday!').
+    Returns a list of ('pause', None) or ('speech', (text, emotion)).
+    """
+    tokens = []
+    last_idx = 0
+    for m in TAG_RE.finditer(text):
+        start, end = m.span()
+        tag = m.group(1).lower().strip()
+        if start > last_idx:
+            raw_text = text[last_idx:start]
+            if raw_text:
+                tokens.append(("text", raw_text))
+        tokens.append(("tag", tag))
+        last_idx = end
+    if last_idx < len(text):
+        raw_text = text[last_idx:]
+        if raw_text:
+            tokens.append(("text", raw_text))
+
+    items = []
+    current_emo = "neutral"
+    has_prefix_emo = False
+
+    i = 0
+    n = len(tokens)
+    while i < n:
+        kind, val = tokens[i]
+        if kind == "tag":
+            if val in ("pause", "silence"):
+                items.append(("pause", None))
+                has_prefix_emo = False
+                i += 1
+            elif val in ALIAS_TO_EMO:
+                current_emo = ALIAS_TO_EMO[val]
+                has_prefix_emo = True
+                i += 1
+            elif val in ("neutral", "normal", "reset"):
+                current_emo = "neutral"
+                has_prefix_emo = True
+                i += 1
+            else:
+                items.append(("speech", (f"[{val}]", current_emo)))
+                has_prefix_emo = False
+                i += 1
+        elif kind == "text":
+            txt = val.strip()
+            if not has_prefix_emo and i + 1 < n and tokens[i+1][0] == "tag" and tokens[i+1][1] in ALIAS_TO_EMO:
+                # Postfix tag without an explicit prefix tag: e.g. "happy birthday[excited]"
+                emo = ALIAS_TO_EMO[tokens[i+1][1]]
+                if txt:
+                    items.append(("speech", (txt, emo)))
+                current_emo = emo
+                has_prefix_emo = False
+                i += 2
+            else:
+                if txt:
+                    items.append(("speech", (txt, current_emo)))
+                has_prefix_emo = False
+                i += 1
+
+    return items
+
+
 def synthesize(text: str, voice: str, speed: float = 1.0, fmt: str = "mp3", pause_seconds: float = PAUSE_SECONDS) -> AudioResult:
-    text = humanize_text(text)
-    if not text or not any(c.isalnum() for c in text):
-        raise ValueError("Text contains no speakable words.")
+    if not text or not text.strip():
+        raise ValueError("Please provide text to speak.")
     if len(text) > MAX_CHARS:
         raise ValueError(f"Text is too long (max {MAX_CHARS} characters).")
     if voice not in VOICES:
@@ -105,23 +189,33 @@ def synthesize(text: str, voice: str, speed: float = 1.0, fmt: str = "mp3", paus
     if fmt not in ("mp3", "wav"):
         raise ValueError("Format must be mp3 or wav.")
 
-    parts = [p.strip() for p in PAUSE_RE.split(text) if p.strip()]
-    if not parts:
-        raise ValueError("Text only contains pauses.")
+    script = parse_speech_script(text)
+    if not any(item[0] == "speech" for item in script):
+        raise ValueError("Text contains no speakable words.")
 
     engine = pick_engine()
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         seg_files = []
-        for i, part in enumerate(parts):
-            seg = tmp / f"seg{i}.wav"
-            synth_segment(part, voice, engine, seg, speed=speed)
-            seg_files.append(seg)
+        for i, item in enumerate(script):
+            kind = item[0]
+            if kind == "pause":
+                silence_wav = tmp / f"pause_{i}.wav"
+                au.generate_silence(pause_seconds, silence_wav)
+                seg_files.append(silence_wav)
+            elif kind == "speech":
+                txt, emotion = item[1]
+                clean = humanize_text(txt)
+                if clean and any(c.isalnum() for c in clean):
+                    seg_wav = tmp / f"speech_{i}.wav"
+                    synth_segment(clean, voice, engine, seg_wav, speed=speed, emotion=emotion)
+                    seg_files.append(seg_wav)
+
+        if not seg_files:
+            raise ValueError("No speakable audio could be generated.")
 
         joined, final = tmp / "joined.wav", tmp / f"out.{fmt}"
-        au.concat_with_pauses(seg_files, pause_seconds, joined)
-        # Note: synth_segment already synthesized speech at the exact target speed
-        # using the engine's native phoneme length-scale / rate, avoiding atempo artifacts.
+        au.concat_wavs(seg_files, joined)
         au.encode(joined, final, fmt)
         return AudioResult(final.read_bytes(), fmt, au.wav_duration(joined))
 

@@ -1236,6 +1236,307 @@
         grid-template-columns: 1fr;
       }
     }
+
+    /* ---------------- AUTH & PRIVACY ---------------- */
+    .topbar-auth {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .auth-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--paper-dark);
+      font-size: 13.5px;
+      font-weight: 500;
+    }
+
+    .auth-badge.user {
+      background: var(--green-light);
+      border-color: rgba(50, 169, 29, 0.25);
+      color: var(--green-dark);
+      font-weight: 600;
+    }
+
+    [data-theme="dark"] .auth-badge.user {
+      color: var(--green);
+    }
+
+    .auth-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      display: inline-block;
+    }
+
+    .auth-open-btn {
+      background: var(--green);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 9px;
+      font-weight: 600;
+      font-size: 13px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: 0.15s;
+      box-shadow: 0 2px 8px rgba(50, 169, 29, 0.2);
+    }
+
+    .auth-open-btn:hover {
+      background: var(--green-dark);
+      transform: translateY(-1px);
+    }
+
+    .auth-logout-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: 0.15s;
+    }
+
+    .auth-logout-btn:hover {
+      color: #e23b3b;
+      border-color: #e23b3b;
+      background: rgba(226, 59, 59, 0.05);
+    }
+
+    .files-privacy-banner {
+      margin-bottom: 20px;
+      padding: 14px 20px;
+      border-radius: 12px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .privacy-banner-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .privacy-lock-icon {
+      font-size: 22px;
+      background: var(--green-light);
+      padding: 8px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+    }
+
+    .privacy-title {
+      font-weight: 600;
+      font-size: 14.5px;
+      margin-bottom: 2px;
+    }
+
+    .privacy-sub {
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+
+    .auth-highlight-btn {
+      background: var(--green-light);
+      color: var(--green-dark);
+      border: 1px solid rgba(50, 169, 29, 0.3);
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 12.5px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: 0.15s;
+    }
+
+    [data-theme="dark"] .auth-highlight-btn {
+      color: var(--green);
+    }
+
+    .auth-highlight-btn:hover {
+      background: var(--green);
+      color: white;
+    }
+
+    /* Modal Overlay & Card */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(5px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+      padding: 16px;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 420px;
+      padding: 26px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+      transform: scale(0.94);
+      transition: transform 0.2s ease;
+    }
+
+    .modal-overlay.active .modal-card {
+      transform: scale(1);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 22px;
+    }
+
+    .modal-tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--paper-dark);
+      padding: 4px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+
+    .modal-tab {
+      border: none;
+      background: transparent;
+      padding: 7px 16px;
+      border-radius: 8px;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      transition: 0.15s;
+    }
+
+    .modal-tab.active {
+      background: var(--card);
+      color: var(--text);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+    }
+
+    .modal-close-btn {
+      border: none;
+      background: transparent;
+      font-size: 18px;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 6px 10px;
+      border-radius: 8px;
+      transition: 0.15s;
+    }
+
+    .modal-close-btn:hover {
+      background: var(--paper-dark);
+      color: var(--text);
+    }
+
+    .auth-form {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .auth-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .auth-field label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .auth-field input {
+      width: 100%;
+      padding: 11px 14px;
+      border-radius: 9px;
+      border: 1px solid var(--border);
+      background: var(--paper);
+      color: var(--text);
+      font-size: 14px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .auth-field input:focus {
+      outline: none;
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(50, 169, 29, 0.15);
+    }
+
+    .auth-error {
+      background: #ffeded;
+      border: 1px solid #ffc8c8;
+      color: #d32f2f;
+      padding: 9px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+
+    [data-theme="dark"] .auth-error {
+      background: #331515;
+      border-color: #5c2020;
+      color: #ff8e8e;
+    }
+
+    .auth-submit-btn {
+      width: 100%;
+      height: 44px;
+      background: var(--green);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: 0.15s;
+      margin-top: 4px;
+    }
+
+    .auth-submit-btn:hover {
+      background: var(--green-dark);
+    }
+
+    .auth-hint {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.4;
+      margin-top: 4px;
+    }
   </style>
 </head>
 
@@ -1299,6 +1600,9 @@
         <h1 id="topbarTitle">Text to Speech</h1>
         <p id="topbarDesc">Type anything and convert it to a natural sounding AI voice.</p>
       </div>
+
+      <!-- User Auth State -->
+      <div class="topbar-auth" id="topbarAuth"></div>
     </header>
 
 
@@ -1320,17 +1624,27 @@
                 <textarea
                   id="textInput"
                   maxlength="5000"
-                  placeholder="Type or paste what you want the AI voice to speak..."
+                  placeholder="Type what you want the AI voice to speak... Use emotions like happy birthday[excited] or [sad], [whisper], [angry], [calm], [dramatic]!"
                 ></textarea>
 
-                <div class="editor-actions">
+                <div class="editor-actions" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
                   <button class="small-button" id="clearBtn">
                     🗑 Clear
                   </button>
 
                   <button class="small-button" id="insertPauseBtn">
-                    ‖ Insert Pause [pause]
+                    ‖ Pause [pause]
                   </button>
+
+                  <div style="display: flex; gap: 6px; align-items: center; margin-left: auto; flex-wrap: wrap;">
+                    <span style="font-size: 12px; color: var(--muted); font-weight: 500;">Emotions:</span>
+                    <button class="small-button emotion-chip" type="button" data-tag="[excited]" title="Happy & energetic" style="font-size: 11.5px; height: 28px; padding: 0 8px;">✨ [excited]</button>
+                    <button class="small-button emotion-chip" type="button" data-tag="[sad]" title="Melancholic & slow" style="font-size: 11.5px; height: 28px; padding: 0 8px;">😢 [sad]</button>
+                    <button class="small-button emotion-chip" type="button" data-tag="[whisper]" title="Soft & breathy" style="font-size: 11.5px; height: 28px; padding: 0 8px;">🤫 [whisper]</button>
+                    <button class="small-button emotion-chip" type="button" data-tag="[angry]" title="Forceful & intense" style="font-size: 11.5px; height: 28px; padding: 0 8px;">🔥 [angry]</button>
+                    <button class="small-button emotion-chip" type="button" data-tag="[calm]" title="Relaxed & gentle" style="font-size: 11.5px; height: 28px; padding: 0 8px;">🍃 [calm]</button>
+                    <button class="small-button emotion-chip" type="button" data-tag="[dramatic]" title="Cinematic & deep" style="font-size: 11.5px; height: 28px; padding: 0 8px;">🎬 [dramatic]</button>
+                  </div>
                 </div>
               </div>
 
@@ -1600,6 +1914,19 @@
 
       <!-- ================= 3. MY FILES TAB ================= -->
       <section class="tab-view" id="tab-files">
+        <div class="files-privacy-banner" id="filesPrivacyBanner">
+          <div class="privacy-banner-left">
+            <span class="privacy-lock-icon">🔒</span>
+            <div>
+              <div class="privacy-title" id="filesPrivacyTitle">Private Audio Vault</div>
+              <div class="privacy-sub" id="filesPrivacySub">Only you can view and download your voice files.</div>
+            </div>
+          </div>
+          <div id="filesGuestPrompt" style="display: none;">
+            <button class="auth-highlight-btn" id="filesSignInPromptBtn">🔑 Sign In to save permanently</button>
+          </div>
+        </div>
+
         <div class="files-header-bar">
           <div class="files-filters">
             <button class="filter-pill active" data-file-filter="all">All Files</button>
@@ -1779,6 +2106,47 @@
 
   </main>
 
+<!-- Authentication Modal -->
+<div class="modal-overlay" id="authModal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div class="modal-tabs">
+        <button class="modal-tab active" id="authTabLogin">Sign In</button>
+        <button class="modal-tab" id="authTabRegister">Create Account</button>
+      </div>
+      <button class="modal-close-btn" id="closeAuthModalBtn">✕</button>
+    </div>
+
+    <!-- Sign In Form -->
+    <form id="loginForm" class="auth-form">
+      <div class="auth-field">
+        <label for="loginUsername">Username</label>
+        <input type="text" id="loginUsername" placeholder="Enter username" required autocomplete="username" />
+      </div>
+      <div class="auth-field">
+        <label for="loginPassword">Password</label>
+        <input type="password" id="loginPassword" placeholder="Enter password" required autocomplete="current-password" />
+      </div>
+      <div class="auth-error" id="loginError" style="display: none;"></div>
+      <button type="submit" class="auth-submit-btn" id="loginSubmitBtn">Sign In</button>
+      <p class="auth-hint">🔒 Your voices and files are 100% private and isolated to your account.</p>
+    </form>
+
+    <!-- Register Form -->
+    <form id="registerForm" class="auth-form" style="display: none;">
+      <div class="auth-field">
+        <label for="registerUsername">Choose Username</label>
+        <input type="text" id="registerUsername" placeholder="Letters or numbers (min 3 chars)" required autocomplete="username" />
+      </div>
+      <div class="auth-field">
+        <label for="registerPassword">Create Password</label>
+        <input type="password" id="registerPassword" placeholder="At least 4 characters" required autocomplete="new-password" />
+      </div>
+      <div class="auth-error" id="registerError" style="display: none;"></div>
+      <button type="submit" class="auth-submit-btn" id="registerSubmitBtn">Create Free Account</button>
+      <p class="auth-hint">✨ Any voices generated in your current session will automatically migrate to your new account!</p>
+    </form>
+  </div>
 </div>
 
 <!-- Toast Alert -->
