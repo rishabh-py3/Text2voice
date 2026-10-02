@@ -520,18 +520,39 @@
     .generate, .vts-convert-btn, .quick-convert-btn {
       position: relative;
       overflow: hidden;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     .btn-loading-active {
-      background: #0f170f !important;
+      background: #091209 !important;
       color: #ffffff !important;
       border: 1.5px solid var(--green) !important;
-      box-shadow: 0 0 22px rgba(50, 207, 48, 0.45), inset 0 0 12px rgba(50, 207, 48, 0.2) !important;
+      box-shadow: 0 0 25px rgba(50, 207, 48, 0.6), inset 0 0 15px rgba(50, 207, 48, 0.3) !important;
       cursor: wait !important;
       opacity: 1 !important;
-      transform: none !important;
+      animation: btnMorphTransform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
     }
 
+    @keyframes btnMorphTransform {
+      0% {
+        transform: scale(0.95);
+        border-radius: 28px;
+        box-shadow: 0 0 5px rgba(50, 207, 48, 0.2);
+        filter: brightness(1.4);
+      }
+      50% {
+        transform: scale(1.02);
+        border-radius: 8px;
+        box-shadow: 0 0 30px rgba(50, 207, 48, 0.8), inset 0 0 20px rgba(50, 207, 48, 0.4);
+      }
+      100% {
+        transform: scale(1);
+        border-radius: 10px;
+        box-shadow: 0 0 25px rgba(50, 207, 48, 0.6), inset 0 0 15px rgba(50, 207, 48, 0.3);
+      }
+    }
+
+    /* Video background with vibrant green color transformation & smooth reveal */
     .btn-video-bg {
       position: absolute;
       top: 0;
@@ -539,10 +560,44 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
-      opacity: 0.75;
+      opacity: 0;
       z-index: 1;
       pointer-events: none;
-      filter: brightness(0.95) contrast(1.15);
+      /* Recolors the video to energetic glowing Emerald Green AI theme */
+      filter: sepia(100%) hue-rotate(85deg) saturate(380%) brightness(0.85) contrast(1.3);
+      mix-blend-mode: screen;
+      animation: videoReveal 0.6s ease-out 0.1s forwards;
+    }
+
+    @keyframes videoReveal {
+      0% {
+        opacity: 0;
+        transform: scale(1.15) rotate(-2deg);
+        filter: sepia(100%) hue-rotate(60deg) saturate(500%) brightness(1.2) contrast(1.5);
+      }
+      100% {
+        opacity: 0.85;
+        transform: scale(1) rotate(0deg);
+        filter: sepia(100%) hue-rotate(85deg) saturate(380%) brightness(0.85) contrast(1.3);
+      }
+    }
+
+    /* Shimmering Color Tint Sweep */
+    .btn-loading-active::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      background: linear-gradient(120deg, rgba(50, 207, 48, 0.25), rgba(20, 100, 30, 0.4), rgba(50, 207, 48, 0.25));
+      background-size: 200% 200%;
+      animation: btnShimmer 2.5s ease infinite;
+      pointer-events: none;
+    }
+
+    @keyframes btnShimmer {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
     }
 
     .btn-content-overlay {
@@ -554,10 +609,16 @@
       gap: 10px;
       width: 100%;
       height: 100%;
-      text-shadow: 0 2px 6px rgba(0, 0, 0, 0.85);
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
       font-weight: 700;
       font-size: 15px;
-      letter-spacing: 0.3px;
+      letter-spacing: 0.4px;
+      animation: btnOverlayFade 0.4s ease-out;
+    }
+
+    @keyframes btnOverlayFade {
+      0% { opacity: 0; transform: translateY(4px); }
+      100% { opacity: 1; transform: translateY(0); }
     }
 
     .btn-equalizer {
