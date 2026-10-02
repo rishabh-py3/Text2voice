@@ -134,7 +134,7 @@ def humanize_text(text: str, emotion: str = "neutral") -> str:
 
     # Restore [pause] tags
     text = re.sub(r"SPEECHPAUSETOKEN", "[pause]", text)
-    text = re.sub(r"[ \t]+", " ", text).strip()
+    text = re.sub(r"\s+", " ", text).strip()
 
     if text and text[-1] not in ".!?":
         text += "."

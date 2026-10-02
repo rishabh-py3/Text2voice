@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: ai-voice-studio
+    env: python
+    buildCommand: ./build.sh
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PATH
+        value: "/opt/render/project/src/.local/bin:/usr/local/bin:/usr/bin:/bin"
+      - key: PYTHON_VERSION
+        value: 3.11.9

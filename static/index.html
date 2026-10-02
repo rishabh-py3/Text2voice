@@ -578,8 +578,6 @@
     }
 
     .btn-loading-active {
-      background: var(--green) !important;
-      color: #ffffff !important;
       box-shadow: 0 4px 18px rgba(50, 169, 29, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.15) !important;
       cursor: wait !important;
       opacity: 0.95 !important;
@@ -588,7 +586,7 @@
 
     @keyframes btnPulse {
       0% { box-shadow: 0 4px 14px rgba(50, 169, 29, 0.35); }
-      100% { box-shadow: 0 6px 22px rgba(50, 169, 29, 0.65); }
+      100% { box-shadow: 0 4px 22px rgba(50, 169, 29, 0.65); }
     }
 
     .btn-content-overlay {
@@ -619,11 +617,12 @@
       animation: soundwaveBounce 0.7s ease-in-out infinite alternate;
     }
 
-    .btn-soundwave-anim span:nth-child(1) { height: 8px; animation-delay: 0.1s; }
-    .btn-soundwave-anim span:nth-child(2) { height: 16px; animation-delay: 0.3s; }
-    .btn-soundwave-anim span:nth-child(3) { height: 22px; animation-delay: 0.0s; }
-    .btn-soundwave-anim span:nth-child(4) { height: 14px; animation-delay: 0.4s; }
-    .btn-soundwave-anim span:nth-child(5) { height: 9px; animation-delay: 0.2s; }
+    /* Use negative delays so the animation starts already moving */
+    .btn-soundwave-anim span:nth-child(1) { height: 8px; animation-delay: -0.6s; }
+    .btn-soundwave-anim span:nth-child(2) { height: 16px; animation-delay: -0.4s; }
+    .btn-soundwave-anim span:nth-child(3) { height: 22px; animation-delay: -0.7s; }
+    .btn-soundwave-anim span:nth-child(4) { height: 14px; animation-delay: -0.3s; }
+    .btn-soundwave-anim span:nth-child(5) { height: 9px; animation-delay: -0.5s; }
 
     @keyframes soundwaveBounce {
       0% {

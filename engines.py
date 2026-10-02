@@ -75,9 +75,14 @@ def _kokoro_ready() -> bool:
 
 _KOKORO_CACHE = None
 
-
 def _get_kokoro():
     global _KOKORO_CACHE
+    global _PIPER_VOICE_CACHE
+    
+    # Aggressive memory management for Render free tier (512MB RAM limit)
+    # Evict Piper from memory if Kokoro is loading
+    _PIPER_VOICE_CACHE.clear()
+    
     if _KOKORO_CACHE is None:
         if not _kokoro_ready():
             raise AudioError("Kokoro model files not found. Run ./setup_kokoro.sh or select Piper in Settings.")
@@ -85,7 +90,6 @@ def _get_kokoro():
         voices_path = str(KOKORO_VOICES_BIN if KOKORO_VOICES_BIN.exists() else KOKORO_VOICES_NPZ)
         _KOKORO_CACHE = Kokoro(str(KOKORO_MODEL_FILE), voices_path)
     return _KOKORO_CACHE
-
 
 def _piper_ready() -> bool:
     if not any(VOICES_DIR.glob("*.onnx")):
@@ -95,7 +99,6 @@ def _piper_ready() -> bool:
         return True
     except ImportError:
         return False
-
 
 def pick_engine() -> str:
     wanted = os.getenv("TTS_ENGINE", "auto").lower()
@@ -112,32 +115,29 @@ def pick_engine() -> str:
         "or ./setup_kokoro.sh for Kokoro studio AI voices."
     )
 
-
 _PIPER_VOICE_CACHE = {}
 
-
 def _get_piper_voice(model_path: Path):
+    global _KOKORO_CACHE
+    global _PIPER_VOICE_CACHE
+    
+    # Aggressive memory management for Render free tier
+    # Evict Kokoro from memory if Piper is loading
+    _KOKORO_CACHE = None
+    
     path_str = str(model_path)
     if path_str not in _PIPER_VOICE_CACHE:
+        # Keep only ONE Piper voice in memory at a time to prevent OOM
+        _PIPER_VOICE_CACHE.clear()
+        
         from piper import PiperVoice
         _PIPER_VOICE_CACHE[path_str] = PiperVoice.load(path_str)
     return _PIPER_VOICE_CACHE[path_str]
 
-
 def preload_voices():
-    """Pre-warm onnx neural models in memory at startup for zero-latency response."""
-    if _kokoro_ready():
-        try:
-            _get_kokoro()
-        except Exception:
-            pass
-    for v in VOICES.values():
-        model = VOICES_DIR / f"{v['piper']}.onnx"
-        if model.exists():
-            try:
-                _get_piper_voice(model)
-            except Exception:
-                pass
+    """Disabled to prevent Out of Memory (OOM) errors on Render free tier (512MB limit).
+    Models will lazy-load into memory exactly when requested instead."""
+    pass
 
 
 # Emotion synthesis tuning for Piper (neural variability & phoneme duration) and say (rate factor)
