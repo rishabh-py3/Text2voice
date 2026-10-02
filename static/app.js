@@ -611,14 +611,16 @@
     btn.classList.add("btn-loading-active");
     btn.innerHTML = `
       <div class="btn-content-overlay">
-        <div class="btn-video-mini-box">
-          <video class="btn-video-mini" autoplay loop muted playsinline src="/static/btn_loading.mp4"></video>
+        <div class="btn-soundwave-anim">
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
         </div>
         <span>${escapeHtml(labelText || "Generating Voice…")}</span>
       </div>
     `;
-    const video = btn.querySelector("video");
-    if (video) video.play().catch(() => {});
     return origHTML;
   }
 

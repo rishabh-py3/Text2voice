@@ -542,16 +542,21 @@
     .generate, .vts-convert-btn, .quick-convert-btn {
       position: relative;
       overflow: hidden;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.2s ease;
     }
 
     .btn-loading-active {
-      background: #121a12 !important;
+      background: var(--green) !important;
       color: #ffffff !important;
-      border: 1.5px solid var(--green) !important;
-      box-shadow: 0 0 20px rgba(50, 207, 48, 0.45), inset 0 0 10px rgba(50, 207, 48, 0.2) !important;
+      box-shadow: 0 4px 18px rgba(50, 169, 29, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.15) !important;
       cursor: wait !important;
-      opacity: 1 !important;
+      opacity: 0.95 !important;
+      animation: btnPulse 1.8s ease-in-out infinite alternate;
+    }
+
+    @keyframes btnPulse {
+      0% { box-shadow: 0 4px 14px rgba(50, 169, 29, 0.35); }
+      100% { box-shadow: 0 6px 22px rgba(50, 169, 29, 0.65); }
     }
 
     .btn-content-overlay {
@@ -563,35 +568,40 @@
       height: 100%;
       font-weight: 600;
       font-size: 15px;
-      letter-spacing: 0.3px;
-      animation: btnOverlayFade 0.3s ease-out;
+      letter-spacing: 0.2px;
     }
 
-    @keyframes btnOverlayFade {
-      0% { opacity: 0; transform: scale(0.96); }
-      100% { opacity: 1; transform: scale(1); }
-    }
-
-    .btn-video-mini-box {
-      width: 28px;
-      height: 28px;
-      border-radius: 8px;
-      overflow: hidden;
+    /* Soundwave Voice Animation (Zero Delay, 60fps) */
+    .btn-soundwave-anim {
       display: inline-flex;
       align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      border: 1.5px solid var(--green);
-      box-shadow: 0 0 10px rgba(50, 207, 48, 0.5);
-      background: #000;
+      gap: 3px;
+      height: 22px;
     }
 
-    .btn-video-mini {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      /* Recolors the small video to glowing Emerald Green AI theme */
-      filter: sepia(100%) hue-rotate(85deg) saturate(380%) brightness(0.9) contrast(1.2);
+    .btn-soundwave-anim span {
+      display: inline-block;
+      width: 3.5px;
+      background: #ffffff;
+      border-radius: 3px;
+      animation: soundwaveBounce 0.7s ease-in-out infinite alternate;
+    }
+
+    .btn-soundwave-anim span:nth-child(1) { height: 8px; animation-delay: 0.1s; }
+    .btn-soundwave-anim span:nth-child(2) { height: 16px; animation-delay: 0.3s; }
+    .btn-soundwave-anim span:nth-child(3) { height: 22px; animation-delay: 0.0s; }
+    .btn-soundwave-anim span:nth-child(4) { height: 14px; animation-delay: 0.4s; }
+    .btn-soundwave-anim span:nth-child(5) { height: 9px; animation-delay: 0.2s; }
+
+    @keyframes soundwaveBounce {
+      0% {
+        transform: scaleY(0.25);
+        opacity: 0.6;
+      }
+      100% {
+        transform: scaleY(1.15);
+        opacity: 1;
+      }
     }
 
     /* ---------------- OUTPUT PLAYER ---------------- */
