@@ -21,6 +21,7 @@ VOICES = {
     "Aria": {
         "gender": "Female",
         "piper": "en_US-amy-medium",
+        "kokoro": "af_sarah",
         "say": "Samantha",
         "accent": "American (US)",
         "tone": "Warm & Natural",
@@ -29,6 +30,7 @@ VOICES = {
     "Ethan": {
         "gender": "Male",
         "piper": "en_US-ryan-medium",
+        "kokoro": "am_michael",
         "say": "Alex",
         "accent": "American (US)",
         "tone": "Deep & Confident",
@@ -37,6 +39,7 @@ VOICES = {
     "Nova": {
         "gender": "Neutral",
         "piper": "en_US-lessac-medium",
+        "kokoro": "bf_emma",
         "say": "Daniel",
         "accent": "American (US)",
         "tone": "Balanced & Modern",
@@ -45,12 +48,43 @@ VOICES = {
     "Adam": {
         "gender": "Male",
         "piper": "en_US-bryce-medium",
+        "kokoro": "am_adam",
         "say": "Tom",
         "accent": "American (US)",
         "tone": "Energetic & Friendly",
         "description": "A young male voice with an energetic and friendly tone, ideal for social media tutorials, reels, and video narration.",
     },
 }
+
+KOKORO_DIR = VOICES_DIR / "kokoro"
+KOKORO_MODEL_FILE = KOKORO_DIR / "kokoro-v0_19.onnx"
+KOKORO_VOICES_BIN = KOKORO_DIR / "voices.bin"
+KOKORO_VOICES_NPZ = KOKORO_DIR / "voices.bin.npz"
+
+
+def _kokoro_ready() -> bool:
+    voices_file = KOKORO_VOICES_BIN if KOKORO_VOICES_BIN.exists() else KOKORO_VOICES_NPZ
+    if not (KOKORO_MODEL_FILE.exists() and voices_file.exists()):
+        return False
+    try:
+        import kokoro_onnx  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+_KOKORO_CACHE = None
+
+
+def _get_kokoro():
+    global _KOKORO_CACHE
+    if _KOKORO_CACHE is None:
+        if not _kokoro_ready():
+            raise AudioError("Kokoro model files not found. Run ./setup_kokoro.sh or select Piper in Settings.")
+        from kokoro_onnx import Kokoro
+        voices_path = str(KOKORO_VOICES_BIN if KOKORO_VOICES_BIN.exists() else KOKORO_VOICES_NPZ)
+        _KOKORO_CACHE = Kokoro(str(KOKORO_MODEL_FILE), voices_path)
+    return _KOKORO_CACHE
 
 
 def _piper_ready() -> bool:
@@ -67,13 +101,15 @@ def pick_engine() -> str:
     wanted = os.getenv("TTS_ENGINE", "auto").lower()
     if wanted != "auto":
         return wanted
+    if _kokoro_ready():
+        return "kokoro"
     if _piper_ready():
         return "piper"
     if platform.system() == "Darwin" and shutil.which("say"):
         return "say"
     raise AudioError(
         "No TTS engine available. Run ./setup_voices.sh to install Piper voices "
-        "(or use a Mac, which has the built-in 'say' voices)."
+        "or ./setup_kokoro.sh for Kokoro studio AI voices."
     )
 
 
@@ -90,12 +126,17 @@ def _get_piper_voice(model_path: Path):
 
 def preload_voices():
     """Pre-warm onnx neural models in memory at startup for zero-latency response."""
+    if _kokoro_ready():
+        try:
+            _get_kokoro()
+        except Exception:
+            pass
     for v in VOICES.values():
         model = VOICES_DIR / f"{v['piper']}.onnx"
         if model.exists():
             try:
                 _get_piper_voice(model)
-            except Exception as e:
+            except Exception:
                 pass
 
 
@@ -178,6 +219,24 @@ def synth_segment_pcm(text: str, voice: str, engine: str, speed: float = 1.0, em
             with wave.open(tmp_f.name, "rb") as w:
                 return w.readframes(w.getnframes())
 
+    elif engine == "kokoro":
+        k = _get_kokoro()
+        kokoro_voice_name = VOICES[voice].get("kokoro", "am_adam")
+        kokoro_speed = float(max(0.5, min(2.0, speed)))
+        try:
+            samples, sr = k.create(text, voice=kokoro_voice_name, speed=kokoro_speed, lang="en-us")
+        except Exception as e:
+            raise AudioError(f"Kokoro synthesis failed: {e}")
+
+        import numpy as np
+        if sr != 22050 and len(samples) > 0:
+            old_indices = np.arange(len(samples))
+            new_length = int(len(samples) * 22050 / sr)
+            new_indices = np.linspace(0, len(samples) - 1, new_length)
+            samples = np.interp(new_indices, old_indices, samples).astype(np.float32)
+
+        return (np.clip(samples, -1.0, 1.0) * 32767).astype(np.int16).tobytes()
+
     elif engine == "say":
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
@@ -192,6 +251,15 @@ def synth_segment_pcm(text: str, voice: str, engine: str, speed: float = 1.0, em
             import wave
             with wave.open(str(raw_wav), "rb") as w:
                 return w.readframes(w.getnframes())
+
+    elif engine == "dummy":
+        import math, struct
+        num_samples = int(22050 * 0.8)
+        pcm = bytearray()
+        for i in range(num_samples):
+            val = int(32767 * 0.2 * math.sin(2 * math.pi * 440 * i / 22050))
+            pcm.extend(struct.pack("<h", val))
+        return bytes(pcm)
 
     raise AudioError(f"Unsupported engine: {engine}")
 

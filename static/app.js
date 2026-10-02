@@ -1431,7 +1431,7 @@
         row.style.cssText = "display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--paper); border: 1px solid var(--border); border-radius: 8px; font-size: 13.5px;";
         row.innerHTML = `
           <div>
-            <strong>${v.name}</strong> (${v.piper_model})
+            <strong>${v.name}</strong> (${v.piper_model}${v.kokoro_voice ? ' • Kokoro: ' + v.kokoro_voice : ''})
             <div style="font-size: 11.5px; color: var(--muted);">${v.size_mb} MB Onnx Neural Model</div>
           </div>
           <span class="badge-status">${v.installed ? "Installed ✓" : "Missing ✕"}</span>

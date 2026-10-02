@@ -477,7 +477,7 @@ def get_settings(request: Request):
     return {
         "engine": RUNTIME_SETTINGS["engine"],
         "active_engine": active_engine,
-        "available_engines": ["auto", "piper", "say", "dummy"],
+        "available_engines": ["auto", "kokoro", "piper", "say", "dummy"],
         "default_voice": RUNTIME_SETTINGS["default_voice"],
         "default_speed": RUNTIME_SETTINGS["default_speed"],
         "default_format": RUNTIME_SETTINGS["default_format"],
@@ -502,6 +502,7 @@ def update_settings(update: SettingsUpdate):
             os.environ.pop("TTS_ENGINE", None)
         else:
             os.environ["TTS_ENGINE"] = update.engine
+        _sample_cache.clear()
     if update.default_voice is not None:
         if update.default_voice in VOICES:
             RUNTIME_SETTINGS["default_voice"] = update.default_voice

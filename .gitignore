@@ -1,0 +1,30 @@
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Generated output files (keep directory structure)
+outputs/*
+!outputs/.gitkeep
+
+# Session / local temp files
+:memory:.ses
+
+# VS Code (keep shared configurations)
+.vscode/*
+!.vscode/launch.json
+!.vscode/settings.json
+!.vscode/tasks.json
+
+# Large neural model weights (> 100MB limit for GitHub)
+voices/kokoro/*
+!voices/kokoro/.gitkeep
+
