@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI Voice Studio</title>
+  <link rel="icon" type="image/png" href="/static/logo.png" />
+  <link rel="shortcut icon" type="image/png" href="/static/logo.png" />
+  <link rel="apple-touch-icon" href="/static/logo.png" />
 
   <style>
     :root {
@@ -89,17 +92,36 @@
       padding: 4px 14px 26px;
     }
 
-    .brand-icon {
-      width: 40px;
-      height: 40px;
-      background: var(--green);
-      color: white;
-      border-radius: 9px;
-      display: grid;
-      place-items: center;
-      font-size: 21px;
-      font-weight: 700;
+    .brand-icon-img {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      object-fit: cover;
       flex-shrink: 0;
+      box-shadow: 0 4px 14px rgba(50, 169, 29, 0.35);
+      animation: logoPulse 3s ease-in-out infinite alternate;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      cursor: pointer;
+    }
+
+    .brand-icon-img:hover {
+      transform: scale(1.12) rotate(3deg);
+      box-shadow: 0 6px 22px rgba(50, 207, 48, 0.65);
+    }
+
+    @keyframes logoPulse {
+      0% {
+        transform: scale(1);
+        box-shadow: 0 4px 14px rgba(50, 169, 29, 0.35);
+      }
+      50% {
+        transform: scale(1.07);
+        box-shadow: 0 6px 20px rgba(50, 207, 48, 0.65);
+      }
+      100% {
+        transform: scale(1);
+        box-shadow: 0 4px 14px rgba(50, 169, 29, 0.35);
+      }
     }
 
     .brand h2 {
@@ -1681,7 +1703,7 @@
   <aside class="sidebar">
 
     <div class="brand">
-      <div class="brand-icon">〽</div>
+      <img src="/static/logo.png" alt="AI Voice Studio Logo" class="brand-icon-img" />
       <div>
         <h2>AI Voice Studio</h2>
         <p>Convert text or voice to<br>natural AI speech</p>
