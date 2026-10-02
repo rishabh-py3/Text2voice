@@ -604,6 +604,36 @@
     showToast("Downloading audio…");
   });
 
+  function setButtonLoading(btn, labelText) {
+    if (!btn) return "";
+    const origHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.classList.add("btn-loading-active");
+    btn.innerHTML = `
+      <video class="btn-video-bg" autoplay loop muted playsinline src="/static/btn_loading.mp4"></video>
+      <div class="btn-content-overlay">
+        <div class="btn-equalizer">
+          <div class="btn-equalizer-bar"></div>
+          <div class="btn-equalizer-bar"></div>
+          <div class="btn-equalizer-bar"></div>
+          <div class="btn-equalizer-bar"></div>
+          <div class="btn-equalizer-bar"></div>
+        </div>
+        <span>${escapeHtml(labelText || "Generating Voice…")}</span>
+      </div>
+    `;
+    const video = btn.querySelector("video");
+    if (video) video.play().catch(() => {});
+    return origHTML;
+  }
+
+  function restoreButton(btn, origHTML) {
+    if (!btn) return;
+    btn.disabled = false;
+    btn.classList.remove("btn-loading-active");
+    if (origHTML) btn.innerHTML = origHTML;
+  }
+
   // Generate TTS Action
   generateBtn.addEventListener("click", async () => {
     const text = textInput.value.trim();
@@ -613,9 +643,9 @@
       return;
     }
 
-    generateBtn.disabled = true;
-    const origHTML = generateBtn.innerHTML;
-    generateBtn.innerHTML = "⏳ &nbsp; Generating Voice…";
+    const emotionMatch = text.match(/\[([a-zA-Z0-9_\-\s]+)\]/);
+    const labelText = emotionMatch ? `Generating [${emotionMatch[1].trim()}] Voice…` : "Generating Voice…";
+    const origHTML = setButtonLoading(generateBtn, labelText);
     outputStatusPill.textContent = "Generating…";
 
     try {
@@ -645,8 +675,7 @@
       showToast(err.message, true);
       outputStatusPill.textContent = "Error";
     } finally {
-      generateBtn.disabled = false;
-      generateBtn.innerHTML = origHTML;
+      restoreButton(generateBtn, origHTML);
     }
   });
 
@@ -770,8 +799,7 @@
 
   quickConvertBtn.addEventListener("click", async () => {
     if (!quickPendingFile) return;
-    quickConvertBtn.disabled = true;
-    quickConvertBtn.textContent = "Converting…";
+    const origHTML = setButtonLoading(quickConvertBtn, "Applying Effect…");
     try {
       const form = new FormData();
       form.append("file", quickPendingFile);
@@ -795,8 +823,7 @@
     } catch (err) {
       showToast(err.message, true);
     } finally {
-      quickConvertBtn.disabled = false;
-      quickConvertBtn.textContent = "Convert";
+      restoreButton(quickConvertBtn, origHTML);
     }
   });
 
@@ -1043,9 +1070,7 @@
       return;
     }
 
-    vtsConvertBtn.disabled = true;
-    const origHTML = vtsConvertBtn.innerHTML;
-    vtsConvertBtn.innerHTML = "⏳ &nbsp; Transforming Voice…";
+    const origHTML = setButtonLoading(vtsConvertBtn, "Transforming Voice…");
     vtsOutputStatus.textContent = "Processing…";
 
     try {
@@ -1073,8 +1098,7 @@
       showToast(err.message, true);
       vtsOutputStatus.textContent = "Error";
     } finally {
-      vtsConvertBtn.disabled = false;
-      vtsConvertBtn.innerHTML = origHTML;
+      restoreButton(vtsConvertBtn, origHTML);
     }
   });
 
