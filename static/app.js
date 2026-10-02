@@ -640,9 +640,7 @@
       return;
     }
 
-    const emotionMatch = text.match(/\[([a-zA-Z0-9_\-\s]+)\]/);
-    const labelText = emotionMatch ? `Generating [${emotionMatch[1].trim()}] Voice…` : "Generating Voice…";
-    const origHTML = setButtonLoading(generateBtn, labelText);
+    const origHTML = setButtonLoading(generateBtn, "Generating Voice…");
     outputStatusPill.textContent = "Generating…";
 
     try {
