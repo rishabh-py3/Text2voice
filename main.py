@@ -42,6 +42,11 @@ RUNTIME_SETTINGS = {
 @app.on_event("startup")
 def on_startup():
     db.init_db()
+    try:
+        from engines import preload_voices
+        preload_voices()
+    except Exception:
+        pass
 
 
 # ---------------- Session & Auth Helpers ----------------

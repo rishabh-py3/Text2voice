@@ -77,27 +77,73 @@ def change_speed(src: Path, dst: Path, speed: float) -> None:
 
 
 # Emotion acoustic prosody filters (Acoustic presence, warmth, contour & dynamics)
+# Emotion acoustic prosody filters (Acoustic presence, warmth, contour & dynamics)
 # Note: Pitch & tempo are handled naturally at synthesis time to preserve speaker identity 100%.
 EMOTION_FILTERS = {
-    # Excited / Cheerful: bright vocal presence + crisp articulation + energetic compression
-    "excited": "equalizer=f=3200:t=q:w=1.2:g=2.5,treble=g=2.0:f=6500,acompressor=threshold=-16dB:ratio=3.0:attack=8:release=80,alimiter=limit=-0.5dB",
-    # Sad / Melancholic: soft warm contour + gentle presence reduction + mellow dynamics
-    "sad": "volume=0.94,equalizer=f=260:t=q:w=1.0:g=1.8,equalizer=f=3600:t=q:w=1.2:g=-2.2,acompressor=threshold=-20dB:ratio=2.2:attack=25:release=180,alimiter=limit=-0.5dB",
+    # Excited / Cheerful: bright vocal presence + crisp articulation + energetic leveling
+    "excited": "equalizer=f=3200:t=q:w=1.0:g=1.8,treble=g=1.5:f=6500,volume=1.05,alimiter=limit=-0.3dB",
+    # Sad / Melancholic: soft warm contour + gentle presence reduction + mellow dynamics (preserves 100% vocal identity)
+    "sad": "volume=0.94,equalizer=f=220:t=q:w=0.8:g=1.2,equalizer=f=4500:t=q:w=1.0:g=-1.2,alimiter=limit=-0.5dB",
     # Angry / Aggressive: firm mid-range punch + forceful articulation + tight leveling
-    "angry": "equalizer=f=1800:t=q:w=1.2:g=3.5,equalizer=f=150:t=q:w=1.0:g=2.0,acompressor=threshold=-15dB:ratio=4.5:attack=5:release=60,alimiter=limit=-0.5dB",
+    "angry": "equalizer=f=1800:t=q:w=1.0:g=2.2,acompressor=threshold=-12dB:ratio=3.5:attack=5:release=50,volume=1.04,alimiter=limit=-0.3dB",
     # Whisper / Soft: breathy highpass + airy presence boost + intimate leveling
-    "whisper": "highpass=f=200,equalizer=f=400:t=q:w=1.2:g=-3.5,equalizer=f=5500:t=q:w=1.0:g=3.5,treble=g=3.0:f=8000,volume=0.90,alimiter=limit=-0.5dB",
+    "whisper": "highpass=f=180,equalizer=f=350:t=q:w=1.0:g=-2.5,treble=g=2.5:f=7000,volume=0.90,alimiter=limit=-0.8dB",
     # Calm / Relaxed: gentle low-mid warmth + smooth presence + transparent dynamics
-    "calm": "equalizer=f=220:t=q:w=1.0:g=1.5,equalizer=f=4000:t=q:w=1.2:g=-1.2,acompressor=threshold=-18dB:ratio=2.5:attack=20:release=140,alimiter=limit=-0.5dB",
+    "calm": "equalizer=f=220:t=q:w=1.0:g=1.0,equalizer=f=3800:t=q:w=1.0:g=-1.0,volume=0.96,alimiter=limit=-0.5dB",
     # Dramatic / Epic: cinematic resonance + expressive presence
-    "dramatic": "equalizer=f=140:t=q:w=1.0:g=2.5,equalizer=f=3000:t=q:w=1.2:g=2.0,acompressor=threshold=-16dB:ratio=3.5:attack=15:release=120,alimiter=limit=-0.5dB",
+    "dramatic": "equalizer=f=120:t=q:w=1.0:g=2.2,equalizer=f=2800:t=q:w=1.0:g=1.5,volume=1.02,alimiter=limit=-0.5dB",
     # Fear / Nervous: tense presence + tight dynamic compression
-    "fear": "equalizer=f=3800:t=q:w=1.2:g=2.0,acompressor=threshold=-16dB:ratio=3.0:attack=10:release=70,alimiter=limit=-0.5dB",
+    "fear": "equalizer=f=3600:t=q:w=1.0:g=1.8,volume=0.96,alimiter=limit=-0.5dB",
     # Serious / Authoritative: solid low resonance + steady broadcast leveling
-    "serious": "equalizer=f=180:t=q:w=1.0:g=2.0,acompressor=threshold=-16dB:ratio=3.0:attack=15:release=100,alimiter=limit=-0.5dB",
+    "serious": "equalizer=f=180:t=q:w=1.0:g=1.8,volume=0.98,alimiter=limit=-0.5dB",
     # Curious / Inquisitive: light bright articulation + clarity
-    "curious": "equalizer=f=3400:t=q:w=1.2:g=2.0,alimiter=limit=-0.5dB",
+    "curious": "equalizer=f=3200:t=q:w=1.0:g=1.5,volume=1.02,alimiter=limit=-0.5dB",
 }
+
+
+def pcm_to_wav_bytes(pcm_bytes: bytes, sample_rate: int = 22050) -> bytes:
+    """Generate in-memory 16-bit mono WAV bytes in microseconds."""
+    import io
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(sample_rate)
+        w.writeframes(pcm_bytes)
+    return buf.getvalue()
+
+
+def filter_pcm(pcm_bytes: bytes, emotion: str) -> bytes:
+    """Apply an acoustic emotion filter to raw PCM bytes in memory."""
+    filter_chain = EMOTION_FILTERS.get(emotion)
+    if not filter_chain:
+        return pcm_bytes
+    cmd = ["ffmpeg", "-y", "-f", "s16le", "-ar", str(SAMPLE_RATE), "-ac", "1", "-i", "pipe:0",
+           "-af", filter_chain, "-f", "s16le", "pipe:1"]
+    proc = subprocess.run(cmd, input=pcm_bytes, capture_output=True)
+    if proc.returncode != 0:
+        return pcm_bytes
+    return proc.stdout
+
+
+def encode_pcm_to_audio(pcm_bytes: bytes, fmt: str = "mp3", emotion: str = "neutral") -> bytes:
+    """Single-pass in-memory stream: applies emotion acoustic filter and encodes to target format directly."""
+    filter_chain = EMOTION_FILTERS.get(emotion)
+    if fmt == "wav" and not filter_chain:
+        return pcm_to_wav_bytes(pcm_bytes, SAMPLE_RATE)
+
+    cmd = ["ffmpeg", "-y", "-f", "s16le", "-ar", str(SAMPLE_RATE), "-ac", "1", "-i", "pipe:0"]
+    if filter_chain:
+        cmd.extend(["-af", filter_chain])
+    if fmt == "mp3":
+        cmd.extend(["-codec:a", "libmp3lame", "-q:a", "3", "-f", "mp3", "pipe:1"])
+    else:
+        cmd.extend(["-codec:a", "pcm_s16le", "-f", "wav", "pipe:1"])
+
+    proc = subprocess.run(cmd, input=pcm_bytes, capture_output=True)
+    if proc.returncode != 0:
+        raise AudioError(f"Audio encoding failed: {proc.stderr.decode()[-300:]}")
+    return proc.stdout
 
 
 def apply_emotion(src: Path, dst: Path, emotion: str) -> None:

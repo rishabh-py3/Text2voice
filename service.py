@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import audio_utils as au
-from engines import VOICES, pick_engine, synth_segment
+from engines import VOICES, pick_engine, synth_segment, synth_segment_pcm
 
 MAX_CHARS = 5000
 PAUSE_SECONDS = 0.6
@@ -23,52 +23,91 @@ class AudioResult:
         return "audio/mpeg" if self.fmt == "mp3" else "audio/wav"
 
 
-def humanize_text(text: str) -> str:
+def expand_currencies(text: str) -> str:
+    """Expand currency symbols into natural spoken English."""
+    def _dollar_sub(m):
+        amt = m.group(1).replace(",", "")
+        if "." in amt:
+            dollars, cents = amt.split(".", 1)
+            cents = cents[:2].ljust(2, "0")
+            c_int = int(cents)
+            d_int = int(dollars) if dollars else 0
+            if d_int == 0 and c_int > 0:
+                return f"{c_int} cents"
+            elif c_int > 0:
+                return f"{dollars} dollars and {c_int} cents"
+            return f"{dollars} dollars"
+        return f"{amt} dollars"
+
+    text = re.sub(r"\$(\d+(?:,\d{3})*(?:\.\d+)?)", _dollar_sub, text)
+    text = re.sub(r"€(\d+(?:,\d{3})*(?:\.\d+)?)", r"\1 euros", text)
+    text = re.sub(r"£(\d+(?:,\d{3})*(?:\.\d+)?)", r"\1 pounds", text)
+    text = re.sub(r"₹(\d+(?:,\d{3})*(?:\.\d+)?)", r"\1 rupees", text)
+    text = re.sub(r"¥(\d+(?:,\d{3})*(?:\.\d+)?)", r"\1 yen", text)
+    return text
+
+
+def humanize_text(text: str, emotion: str = "neutral") -> str:
     """Normalize text for natural, human-like speech synthesis.
-    - Strips or humanizes symbols that TTS engines vocalize literally (e.g. '/', '*', '#', '&', quotes, brackets, bullets).
-    - Converts spoken punctuation commands like 'full stop', 'fullstop', 'period', 'comma', 'question mark'
-      into natural sentence terminators (.) and pauses so the voice pauses/stops naturally instead of speaking symbol names.
-    - Preserves internal contraction apostrophes like don't, it's, we'll, I'm.
-    - Ensures clean sentence-ending cadence so the voice stops talking cleanly.
+    - Never deletes real English words like 'period' or 'comma'.
+    - Converts spoken dictation commands only when bracketed: [period], [full stop], [comma].
+    - Expands currencies ($50 -> 50 dollars), percentages (20% -> 20 percent), and titles (Dr. -> Doctor).
+    - Preserves internal contraction apostrophes (don't, it's, we'll, I'm) and possessives.
+    - Applies emotion-aware prosody punctuation (e.g. sad uses soft '.', excited uses '!').
     """
     if not text:
         return ""
 
-    # 1. Protect intentional [pause] tags with alphanumeric token
+    # 1. Protect intentional [pause] tags with token
     text = re.sub(r"(?i)\[\s*(?:pause|silence)\s*\]", " SPEECHPAUSETOKEN ", text)
 
-    # 2. Normalize spoken punctuation words (dictation / speech-to-text / verbal commands)
-    text = re.sub(r"(?i)[\[\(]\s*(?:full\s*stop|full-stop|fullstop|period)\s*[\]\)]", " . ", text)
-    text = re.sub(r"(?i)(?<=[.!?])\s*(?:full\s*stop|full-stop|fullstop)\s*\.?", "", text)
-    text = re.sub(r"(?i)\b(?:full\s*stop|full-stop|fullstop)\s*\.?", ".", text)
+    # 2. Only convert explicit dictation bracketed commands to punctuation
+    text = re.sub(r"(?i)[\[\(]\s*(?:full\s*stop|full-stop|fullstop|period)\s*[\]\)]", ".", text)
+    text = re.sub(r"(?i)[\[\(]\s*comma\s*[\]\)]", ",", text)
+    text = re.sub(r"(?i)[\[\(]\s*(?:question\s*mark)\s*[\]\)]", "?", text)
+    text = re.sub(r"(?i)[\[\(]\s*(?:exclamation\s*(?:mark|point))\s*[\]\)]", "!", text)
+    text = re.sub(r"(?i)[\[\(]\s*(?:ellipsis|dot\s*dot\s*dot)\s*[\]\)]", "...", text)
+    text = re.sub(r"(?i)[\[\(]\s*(?:semi\s*colon|semicolon)\s*[\]\)]", ";", text)
 
-    text = re.sub(r"(?i)(?<=\?)\s*(?:question\s*mark)\s*\??", "", text)
-    text = re.sub(r"(?i)\b(?:question\s*mark)\s*\??", "?", text)
+    # 3. Strip any residual emotion tag brackets so they are never spoken aloud
+    text = re.sub(r"\[[a-zA-Z_\-]+\]", " ", text)
 
-    text = re.sub(r"(?i)(?<=!)\s*(?:exclamation\s*(?:mark|point))\s*!?", "", text)
-    text = re.sub(r"(?i)\b(?:exclamation\s*(?:mark|point))\s*!?", "!", text)
+    # 4. Currencies & percentages
+    text = expand_currencies(text)
+    text = re.sub(r"(\d+(?:\.\d+)?)\s*%", r"\1 percent", text)
 
-    text = re.sub(r"(?i)\b(?:semi\s*colon|semicolon)\b", ";", text)
-    text = re.sub(r"(?i)\b(?:dot\s*dot\s*dot|ellipsis)\b", "...", text)
-    text = re.sub(r"(?i)\bcomma\b(?=[,\s]|$)", ",", text)
-    text = re.sub(r"(?i)\bperiod\b(?=[.\s]|$)", ".", text)
+    # 5. Common abbreviations & titles
+    abbrevs = [
+        (r"\bDr\.(?=\s+[A-Z])", "Doctor"),
+        (r"\bMr\.(?=\s+[A-Z])", "Mister"),
+        (r"\bMrs\.(?=\s+[A-Z])", "Missus"),
+        (r"\bMs\.(?=\s+[A-Z])", "Ms"),
+        (r"\bProf\.(?=\s+[A-Z])", "Professor"),
+        (r"\bSt\.(?=\s+[A-Z])", "Saint"),
+        (r"\bvs\.(?=\s+)", "versus"),
+        (r"\betc\.(?=[,\s.]|$)", "etcetera"),
+        (r"\be\.g\.,?", "for example,"),
+        (r"\bi\.e\.,?", "that is,"),
+        (r"\bapprox\.(?=\s+\d)", "approximately"),
+    ]
+    for pat, rep in abbrevs:
+        text = re.sub(pat, rep, text, flags=re.IGNORECASE)
 
-    # 3. Humanize symbols that TTS engines read out literally (like "slash", "asterisk", "hash", etc.)
+    # 6. Natural spoken substitutions for symbols
+    text = re.sub(r"(?i)\band/or\b", "and or", text)
     text = re.sub(r"&", " and ", text)
-    text = re.sub(r"(\w)\s*/\s*(\w)", r"\1 or \2", text)
-    text = re.sub(r"[/\\|~^]", ", ", text)
-    text = re.sub(r"[*_`]+", " ", text)
+    text = re.sub(r"(\b\w+)\s*/\s*(\w+\b)", r"\1 or \2", text)
     text = re.sub(r"#(\d+)", r"number \1", text)
     text = re.sub(r"#([a-zA-Z])", r"\1", text)
-    text = re.sub(r"#+", " ", text)
     text = re.sub(r"[\u2022\u25aa\u25ab\u25e6\u2013\u2014]+", ", ", text)
+    text = re.sub(r"[/\\|~^*_`]+", " ", text)
 
-    # Protect internal contraction apostrophes (don't, it's, we'll, I'm) while removing quotes/brackets
-    text = re.sub(r"(\w)\x27(\w)", r"\g<1>CONTRACTIONAPOSTROPHE\g<2>", text)
-    text = re.sub(r"[\(\)\[\]\{\}\"\x27“”‘’«»]", " ", text)
-    text = text.replace("CONTRACTIONAPOSTROPHE", "'")
+    # 7. Protect contractions and possessives (don't, it's, we'll, I'm, John's)
+    text = re.sub(r"(\w)['\’](\w)", r"\1CONTRACTIONAPOS\2", text)
+    text = re.sub(r"[\(\)\[\]\{\}\"“”«»`]", " ", text)
+    text = text.replace("CONTRACTIONAPOS", "'")
 
-    # 4. Normalize punctuation spacing & repetitive marks
+    # 8. Punctuation spacing & repetitive cleanup
     text = re.sub(r"\.{4,}", "...", text)
     text = re.sub(r"\.\s*\.", ".", text)
     text = re.sub(r"(?<!\.)\.\.(?!\.)", ".", text)
@@ -81,11 +120,22 @@ def humanize_text(text: str) -> str:
     text = re.sub(r",\.", ".", text)
     text = re.sub(r"([.,!?;:])([A-Za-z0-9])", r"\1 \2", text)
 
+    # 9. Emotion-aware prosody punctuation
+    if emotion == "sad":
+        # Soften shouting marks to sorrowful cadence
+        text = re.sub(r"!+", ".", text)
+    elif emotion == "excited":
+        # Ensure sentence triggers neural rising pitch inflection
+        if text.endswith("."):
+            text = text[:-1] + "!"
+    elif emotion == "curious":
+        if text.endswith((".", "!")):
+            text = text[:-1] + "?"
+
     # Restore [pause] tags
     text = re.sub(r"SPEECHPAUSETOKEN", "[pause]", text)
     text = re.sub(r"[ \t]+", " ", text).strip()
 
-    # Ensure sentence has ending punctuation so voice stops naturally
     if text and text[-1] not in ".!?":
         text += "."
 
@@ -194,30 +244,38 @@ def synthesize(text: str, voice: str, speed: float = 1.0, fmt: str = "mp3", paus
         raise ValueError("Text contains no speakable words.")
 
     engine = pick_engine()
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp = Path(tmp)
-        seg_files = []
-        for i, item in enumerate(script):
-            kind = item[0]
-            if kind == "pause":
-                silence_wav = tmp / f"pause_{i}.wav"
-                au.generate_silence(pause_seconds, silence_wav)
-                seg_files.append(silence_wav)
-            elif kind == "speech":
-                txt, emotion = item[1]
-                clean = humanize_text(txt)
-                if clean and any(c.isalnum() for c in clean):
-                    seg_wav = tmp / f"speech_{i}.wav"
-                    synth_segment(clean, voice, engine, seg_wav, speed=speed, emotion=emotion)
-                    seg_files.append(seg_wav)
 
-        if not seg_files:
-            raise ValueError("No speakable audio could be generated.")
+    # Determine emotions across speech segments
+    speech_items = [item for item in script if item[0] == "speech"]
+    emotions_used = set(item[1][1] for item in speech_items)
+    is_single_emotion = len(emotions_used) <= 1
+    dominant_emotion = next(iter(emotions_used)) if emotions_used else "neutral"
 
-        joined, final = tmp / "joined.wav", tmp / f"out.{fmt}"
-        au.concat_wavs(seg_files, joined)
-        au.encode(joined, final, fmt)
-        return AudioResult(final.read_bytes(), fmt, au.wav_duration(joined))
+    silence_bytes = b"\x00\x00" * int(au.SAMPLE_RATE * max(0.05, pause_seconds))
+    pcm_segments = []
+
+    for item in script:
+        kind = item[0]
+        if kind == "pause":
+            pcm_segments.append(silence_bytes)
+        elif kind == "speech":
+            txt, emotion = item[1]
+            clean = humanize_text(txt, emotion=emotion)
+            if clean and any(c.isalnum() for c in clean):
+                pcm = synth_segment_pcm(clean, voice, engine, speed=speed, emotion=emotion)
+                if not is_single_emotion and emotion != "neutral":
+                    # For mixed emotions in a script, apply acoustic shaping per segment
+                    pcm = au.filter_pcm(pcm, emotion)
+                pcm_segments.append(pcm)
+
+    if not pcm_segments or not any(s != silence_bytes for s in pcm_segments):
+        raise ValueError("No speakable audio could be generated.")
+
+    all_pcm = b"".join(pcm_segments)
+    filter_emotion = dominant_emotion if is_single_emotion else "neutral"
+    audio_data = au.encode_pcm_to_audio(all_pcm, fmt=fmt, emotion=filter_emotion)
+    duration = len(all_pcm) / (au.SAMPLE_RATE * 2.0)
+    return AudioResult(audio_data, fmt, duration)
 
 
 def convert_voice(upload: bytes, filename: str, effect: str, fmt: str = "mp3") -> AudioResult:

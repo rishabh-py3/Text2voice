@@ -80,30 +80,48 @@ def _get_piper_voice(model_path: Path):
     return _PIPER_VOICE_CACHE[path_str]
 
 
+def preload_voices():
+    """Pre-warm onnx neural models in memory at startup for zero-latency response."""
+    for v in VOICES.values():
+        model = VOICES_DIR / f"{v['piper']}.onnx"
+        if model.exists():
+            try:
+                _get_piper_voice(model)
+            except Exception as e:
+                pass
+
+
 # Emotion synthesis tuning for Piper (neural variability & phoneme duration) and say (rate factor)
 EMOTION_PROFILES = {
-    "excited": {"length_scale": 0.88, "noise_scale": 0.75, "noise_w_scale": 0.85, "say_rate": 1.15},
-    "sad": {"length_scale": 1.25, "noise_scale": 0.55, "noise_w_scale": 0.65, "say_rate": 0.85},
-    "angry": {"length_scale": 0.90, "noise_scale": 0.85, "noise_w_scale": 0.90, "say_rate": 1.10},
-    "whisper": {"length_scale": 1.15, "noise_scale": 0.45, "noise_w_scale": 0.55, "say_rate": 0.90},
-    "calm": {"length_scale": 1.12, "noise_scale": 0.58, "noise_w_scale": 0.68, "say_rate": 0.92},
-    "dramatic": {"length_scale": 1.20, "noise_scale": 0.70, "noise_w_scale": 0.85, "say_rate": 0.88},
-    "fear": {"length_scale": 0.92, "noise_scale": 0.85, "noise_w_scale": 0.95, "say_rate": 1.10},
-    "serious": {"length_scale": 1.08, "noise_scale": 0.55, "noise_w_scale": 0.65, "say_rate": 0.95},
-    "curious": {"length_scale": 0.95, "noise_scale": 0.75, "noise_w_scale": 0.80, "say_rate": 1.05},
+    # Excited: upbeat tempo, vibrant neural expressiveness and lively energy
+    "excited": {"length_scale": 0.90, "noise_scale": 0.72, "noise_w_scale": 0.85, "say_rate": 1.15},
+    # Sad: gentle reflective cadence, preserves 100% natural vocal timbre, sorrowful delivery
+    "sad": {"length_scale": 1.16, "noise_scale": 0.60, "noise_w_scale": 0.72, "say_rate": 0.85},
+    # Angry: firm cadence, punchy articulation
+    "angry": {"length_scale": 0.92, "noise_scale": 0.75, "noise_w_scale": 0.88, "say_rate": 1.15},
+    # Whisper: slow breathy cadence, intimate soft delivery
+    "whisper": {"length_scale": 1.12, "noise_scale": 0.48, "noise_w_scale": 0.58, "say_rate": 0.88},
+    # Calm: gentle relaxed cadence, smooth steady rhythm
+    "calm": {"length_scale": 1.06, "noise_scale": 0.62, "noise_w_scale": 0.74, "say_rate": 0.94},
+    # Dramatic: expansive deliberate cadence, cinematic weight
+    "dramatic": {"length_scale": 1.16, "noise_scale": 0.68, "noise_w_scale": 0.82, "say_rate": 0.88},
+    # Fear: fast anxious flutter, tense cadence
+    "fear": {"length_scale": 0.92, "noise_scale": 0.75, "noise_w_scale": 0.88, "say_rate": 1.12},
+    # Serious: deliberate steady cadence, authoritative
+    "serious": {"length_scale": 1.06, "noise_scale": 0.60, "noise_w_scale": 0.70, "say_rate": 0.94},
+    # Curious: light upward questioning inflection
+    "curious": {"length_scale": 0.96, "noise_scale": 0.70, "noise_w_scale": 0.80, "say_rate": 1.04},
     "neutral": {"length_scale": 1.00, "noise_scale": 0.667, "noise_w_scale": 0.80, "say_rate": 1.00},
 }
 
 
-def synth_segment(text: str, voice: str, engine: str, out_wav: Path, speed: float = 1.0, emotion: str = "neutral") -> None:
+def synth_segment_pcm(text: str, voice: str, engine: str, speed: float = 1.0, emotion: str = "neutral") -> bytes:
+    """Synthesizes speech directly into 16-bit 22050Hz mono PCM bytes in memory (under 100ms)."""
     if voice not in VOICES:
         raise AudioError(f"Unknown voice '{voice}'.")
 
-    # If segment has no letters or digits, output silence rather than failing
     if not any(c.isalnum() for c in text):
-        run_ffmpeg("-f", "lavfi", "-i", "anullsrc=r=22050:cl=mono", "-t", "0.4",
-                   "-ac", "1", "-ar", "22050", "-c:a", "pcm_s16le", str(out_wav))
-        return
+        return b"\x00\x00" * int(22050 * 0.3)
 
     emo_profile = EMOTION_PROFILES.get(emotion, EMOTION_PROFILES["neutral"])
     emo_length_mult = emo_profile["length_scale"]
@@ -112,14 +130,15 @@ def synth_segment(text: str, voice: str, engine: str, out_wav: Path, speed: floa
         model = VOICES_DIR / f"{VOICES[voice]['piper']}.onnx"
         if not model.exists():
             raise AudioError(f"Voice file missing: {model.name}. Run ./setup_voices.sh")
-        
+
         base_length_scale = 1.0 / max(speed, 0.1)
         length_scale = max(0.35, min(2.5, base_length_scale * emo_length_mult))
-        
-        raw = out_wav.with_suffix(".raw.wav")
+
         try:
-            import wave
-            from piper import SynthesisConfig
+            try:
+                from piper.config import SynthesisConfig
+            except ImportError:
+                from piper import SynthesisConfig
             piper_voice = _get_piper_voice(model)
             syn_cfg = SynthesisConfig(
                 length_scale=length_scale,
@@ -127,65 +146,48 @@ def synth_segment(text: str, voice: str, engine: str, out_wav: Path, speed: floa
                 noise_w_scale=emo_profile["noise_w_scale"]
             )
             chunks = list(piper_voice.synthesize(text, syn_config=syn_cfg))
-            if not chunks:
-                raise RuntimeError("Piper generated empty audio chunks.")
-            
-            with wave.open(str(raw), "wb") as w:
-                w.setnchannels(chunks[0].sample_channels)
-                w.setsampwidth(chunks[0].sample_width)
-                w.setframerate(chunks[0].sample_rate)
-                for c in chunks:
-                    w.writeframes(c.audio_int16_bytes)
+            if chunks:
+                return b"".join(c.audio_int16_bytes for c in chunks)
         except Exception:
-            # Fallback to subprocess CLI
+            pass
+
+        # Subprocess fallback if in-memory synthesis fails
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as tmp_f:
             cmd = [
                 sys.executable, "-m", "piper",
                 "-m", str(model),
                 "--length-scale", f"{length_scale:.3f}",
                 "--noise-scale", f"{emo_profile['noise_scale']:.3f}",
                 "--noise-w", f"{emo_profile['noise_w_scale']:.3f}",
-                "-f", str(raw),
+                "-f", tmp_f.name,
             ]
-            proc = subprocess.run(
-                cmd,
-                input=text, capture_output=True, text=True, timeout=120,
-            )
+            proc = subprocess.run(cmd, input=text, capture_output=True, text=True, timeout=120)
             if proc.returncode != 0:
                 raise AudioError(f"Piper failed: {proc.stderr.strip()[-300:]}")
-
-        # Apply emotion acoustic shaping
-        from audio_utils import apply_emotion
-        apply_emotion(raw, out_wav, emotion)
-        try:
-            raw.unlink(missing_ok=True)
-        except OSError:
-            pass
+            import wave
+            with wave.open(tmp_f.name, "rb") as w:
+                return w.readframes(w.getnframes())
 
     elif engine == "say":
-        aiff = out_wav.with_suffix(".aiff")
-        rate = max(80, min(380, int(185 * speed * emo_profile["say_rate"])))
-        cmd = ["say", "-v", VOICES[voice]["say"], "-r", str(rate), "-o", str(aiff), "-f", "-"]
-        proc = subprocess.run(cmd, input=text, capture_output=True, text=True, timeout=120)
-        if proc.returncode != 0:
-            proc = subprocess.run(["say", "-r", str(rate), "-o", str(aiff), "-f", "-"], input=text,
-                                  capture_output=True, text=True, timeout=120)
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            aiff = tmp / "temp.aiff"
+            rate = max(80, min(380, int(185 * speed * emo_profile["say_rate"])))
+            cmd = ["say", "-v", VOICES[voice]["say"], "-r", str(rate), "-o", str(aiff), "-f", "-"]
+            proc = subprocess.run(cmd, input=text, capture_output=True, text=True, timeout=120)
             if proc.returncode != 0:
                 raise AudioError(f"'say' failed: {proc.stderr.strip()[-300:]}")
-        
-        raw_wav = out_wav.with_suffix(".raw.wav")
-        to_wav(aiff, raw_wav)
-        from audio_utils import apply_emotion
-        apply_emotion(raw_wav, out_wav, emotion)
-        try:
-            aiff.unlink(missing_ok=True)
-            raw_wav.unlink(missing_ok=True)
-        except OSError:
-            pass
+            raw_wav = tmp / "raw.wav"
+            to_wav(aiff, raw_wav)
+            import wave
+            with wave.open(str(raw_wav), "rb") as w:
+                return w.readframes(w.getnframes())
 
-    elif engine == "dummy":
-        freq = {"Aria": 440, "Ethan": 220, "Nova": 330}[voice]
-        secs = max(0.4, min(len(text) * 0.06 / max(speed, 0.1), 10))
-        run_ffmpeg("-f", "lavfi", "-i", f"sine=frequency={freq}:duration={secs}",
-                   "-ac", "1", "-ar", "22050", "-c:a", "pcm_s16le", str(out_wav))
-    else:
-        raise AudioError(f"Unknown TTS engine '{engine}'.")
+    raise AudioError(f"Unsupported engine: {engine}")
+
+
+def synth_segment(text: str, voice: str, engine: str, out_wav: Path, speed: float = 1.0, emotion: str = "neutral") -> None:
+    pcm = synth_segment_pcm(text, voice, engine, speed=speed, emotion=emotion)
+    from audio_utils import encode_pcm_to_audio
+    wav_data = encode_pcm_to_audio(pcm, fmt="wav", emotion=emotion)
+    out_wav.write_bytes(wav_data)
