@@ -1,4 +1,4 @@
-"""Audio helpers built on FFmpeg (no AI here, just signal processing)."""
+import shutil
 import subprocess
 import wave
 from pathlib import Path
@@ -10,12 +10,21 @@ class AudioError(RuntimeError):
     pass
 
 
+def get_ffmpeg_bin() -> str:
+    """Finds FFmpeg via imageio-ffmpeg (self-contained bundled binary) or system PATH."""
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return shutil.which("ffmpeg") or "ffmpeg"
+
+
 def run_ffmpeg(*args: str) -> None:
-    cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", *args]
+    cmd = [get_ffmpeg_bin(), "-y", "-hide_banner", "-loglevel", "error", *args]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     except FileNotFoundError:
-        raise AudioError("FFmpeg is not installed. On Mac run: brew install ffmpeg")
+        raise AudioError("FFmpeg is not installed.")
     except subprocess.TimeoutExpired:
         raise AudioError("Audio processing timed out.")
     if result.returncode != 0:
@@ -124,7 +133,7 @@ def filter_pcm(pcm_bytes: bytes, emotion: str) -> bytes:
     filter_chain = EMOTION_FILTERS.get(emotion)
     if not filter_chain:
         return pcm_bytes
-    cmd = ["ffmpeg", "-y", "-f", "s16le", "-ar", str(SAMPLE_RATE), "-ac", "1", "-i", "pipe:0",
+    cmd = [get_ffmpeg_bin(), "-y", "-f", "s16le", "-ar", str(SAMPLE_RATE), "-ac", "1", "-i", "pipe:0",
            "-af", filter_chain, "-f", "s16le", "pipe:1"]
     proc = subprocess.run(cmd, input=pcm_bytes, capture_output=True)
     if proc.returncode != 0:
@@ -138,7 +147,7 @@ def encode_pcm_to_audio(pcm_bytes: bytes, fmt: str = "mp3", emotion: str = "neut
     if fmt == "wav" and not filter_chain:
         return pcm_to_wav_bytes(pcm_bytes, SAMPLE_RATE)
 
-    cmd = ["ffmpeg", "-y", "-f", "s16le", "-ar", str(SAMPLE_RATE), "-ac", "1", "-i", "pipe:0"]
+    cmd = [get_ffmpeg_bin(), "-y", "-f", "s16le", "-ar", str(SAMPLE_RATE), "-ac", "1", "-i", "pipe:0"]
     if filter_chain:
         cmd.extend(["-af", filter_chain])
     if fmt == "mp3":
