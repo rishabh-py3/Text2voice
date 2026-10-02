@@ -10,34 +10,34 @@
 
   <style>
     :root {
-      --paper: #fffdf3;
-      --paper-dark: #f8f5e8;
-      --card: #fffef9;
+      --paper: #f8fafc;
+      --paper-dark: #f1f5f9;
+      --card: #ffffff;
       --card-hover: #ffffff;
-      --green: #32a91d;
-      --green-dark: #238512;
-      --green-light: #eef8df;
-      --border: #e8e5d5;
-      --text: #1d211d;
-      --muted: #6d7169;
-      --shadow: 0 2px 12px rgba(60, 55, 25, 0.05);
+      --green: #10b981;
+      --green-dark: #059669;
+      --green-light: #ecfdf5;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --muted: #64748b;
+      --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
       --radius: 14px;
-      --sidebar-bg: rgba(255, 254, 247, 0.95);
+      --sidebar-bg: #ffffff;
     }
 
     [data-theme="dark"] {
-      --paper: #121512;
-      --paper-dark: #181d18;
-      --card: #1c221c;
-      --card-hover: #222922;
-      --green: #48cf30;
-      --green-dark: #37b022;
-      --green-light: #1e331b;
-      --border: #293429;
-      --text: #f0f4ee;
-      --muted: #9aa298;
-      --shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-      --sidebar-bg: rgba(22, 27, 22, 0.95);
+      --paper: #0b0f0e;
+      --paper-dark: #121815;
+      --card: #151d18;
+      --card-hover: #1c261f;
+      --green: #10b981;
+      --green-dark: #059669;
+      --green-light: rgba(16, 185, 129, 0.14);
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+      --sidebar-bg: #0e1310;
     }
 
     * {
@@ -340,7 +340,7 @@
 
     textarea:focus {
       border-color: var(--green);
-      box-shadow: 0 0 0 3px rgba(50, 169, 29, 0.12);
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
     }
 
     .editor-actions {
@@ -351,20 +351,38 @@
     }
 
     .small-button {
-      height: 36px;
-      padding: 0 13px;
+      height: 34px;
+      padding: 0 12px;
       border-radius: 8px;
-      background: var(--card);
+      background: var(--paper-dark);
       border: 1px solid var(--border);
       color: var(--text);
       font-size: 13px;
       font-weight: 500;
-      transition: 0.15s;
+      transition: all 0.15s ease;
     }
 
     .small-button:hover {
       border-color: var(--green);
       color: var(--green-dark);
+      background: var(--card);
+      transform: translateY(-1px);
+    }
+
+    .emotion-chip {
+      background: var(--card) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: 20px !important;
+      color: var(--muted) !important;
+      font-weight: 500 !important;
+      transition: all 0.15s ease !important;
+    }
+
+    .emotion-chip:hover {
+      border-color: var(--green) !important;
+      color: var(--green-dark) !important;
+      background: var(--green-light) !important;
+      transform: translateY(-1px) scale(1.02) !important;
     }
 
     /* ---------------- VOICES PICKER ---------------- */
@@ -375,9 +393,10 @@
     }
 
     .voices h3 {
-      font-size: 16px;
-      margin-bottom: 16px;
+      font-size: 15px;
+      margin-bottom: 14px;
       font-weight: 600;
+      letter-spacing: -0.2px;
     }
 
     .voice-list {
@@ -387,56 +406,63 @@
     }
 
     .voice {
-      min-height: 88px;
-      padding: 14px;
-      background: var(--paper);
+      min-height: 86px;
+      padding: 14px 16px;
+      background: var(--card);
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: 12px;
       text-align: left;
-      transition: 0.2s;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       position: relative;
     }
 
     .voice:hover {
       border-color: var(--green);
-      background: var(--card-hover);
+      background: var(--paper-dark);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
     }
 
     .voice.selected {
       border: 2px solid var(--green);
       background: var(--green-light);
+      box-shadow: 0 0 0 1px var(--green);
     }
 
     .voice-name {
       font-weight: 600;
-      font-size: 15px;
-      margin-bottom: 4px;
+      font-size: 14.5px;
+      margin-bottom: 3px;
+      letter-spacing: -0.2px;
     }
 
     .voice-type {
       color: var(--muted);
-      font-size: 12.5px;
+      font-size: 12px;
+      font-weight: 500;
     }
 
     .voice-play {
       position: absolute;
-      right: 10px;
-      bottom: 10px;
-      width: 28px;
-      height: 28px;
+      right: 12px;
+      bottom: 12px;
+      width: 26px;
+      height: 26px;
       border-radius: 50%;
       border: none;
       background: var(--green);
       color: white;
-      font-size: 11px;
+      font-size: 10px;
       display: grid;
       place-items: center;
-      transition: 0.15s;
+      transition: all 0.15s ease;
+      box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
     }
 
     .voice-play:hover {
       background: var(--green-dark);
-      transform: scale(1.08);
+      transform: scale(1.1);
+      box-shadow: 0 3px 10px rgba(16, 185, 129, 0.5);
     }
 
     /* ---------------- ADVANCED SETTINGS ---------------- */
@@ -511,16 +537,17 @@
       position: relative;
       overflow: hidden;
       margin-top: 18px;
-      height: 58px;
+      height: 54px;
       width: 100%;
       border: none;
-      border-radius: 10px;
-      background: var(--green);
+      border-radius: 12px;
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
       color: white;
-      font-size: 16px;
+      font-size: 15.5px;
       font-weight: 600;
-      transition: 0.2s;
-      box-shadow: 0 4px 14px rgba(50, 169, 29, 0.2);
+      letter-spacing: -0.2px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05), 0 4px 14px rgba(16, 185, 129, 0.35);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -528,12 +555,17 @@
     }
 
     .generate:hover {
-      background: var(--green-dark);
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
       transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
+    }
+
+    .generate:active {
+      transform: translateY(1px);
     }
 
     .generate:disabled {
-      opacity: 0.65;
+      opacity: 0.85;
       cursor: wait;
       transform: none;
     }
