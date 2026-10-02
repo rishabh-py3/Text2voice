@@ -76,26 +76,27 @@ def change_speed(src: Path, dst: Path, speed: float) -> None:
     run_ffmpeg("-i", str(src), "-filter:a", f"atempo={speed:.3f}", str(dst))
 
 
-# Emotion acoustic prosody filters (Pitch, Dynamics, Formant Shaping & Articulation)
+# Emotion acoustic prosody filters (Acoustic presence, warmth, contour & dynamics)
+# Note: Pitch & tempo are handled naturally at synthesis time to preserve speaker identity 100%.
 EMOTION_FILTERS = {
-    # Excited / Cheerful / Happy: pitch lift + high-mid sparkle + dynamic punch
-    "excited": "volume=0.88,asetrate=22050*1.14,aresample=22050,atempo=1.0/1.14,equalizer=f=3500:t=q:w=1.5:g=3.0,treble=g=2.5:f=6000,acompressor=threshold=-14dB:ratio=3:attack=5:release=80,alimiter=limit=-1dB",
-    # Sad / Melancholic: pitch drop + warm low-mid softening + dampened highs
-    "sad": "volume=0.92,asetrate=22050*0.88,aresample=22050,atempo=1.0/0.88,lowpass=f=4000,equalizer=f=300:t=q:w=1.2:g=2,equalizer=f=3000:t=q:w=1.5:g=-3,acompressor=threshold=-22dB:ratio=2.5:attack=30:release=200,alimiter=limit=-1dB",
-    # Angry / Aggressive: forceful bite + punchy compression + slight edge
-    "angry": "volume=0.85,asetrate=22050*0.96,aresample=22050,atempo=1.0/0.96,equalizer=f=2200:t=q:w=1.4:g=4.5,equalizer=f=120:t=q:w=1.2:g=3,acrusher=bits=14:mix=0.15:mode=lin,acompressor=threshold=-18dB:ratio=5:attack=5:release=50,alimiter=limit=-1dB",
-    # Whisper / Soft: breathy highpass filter + airy presence boost + intimate volume
-    "whisper": "highpass=f=280,equalizer=f=450:t=q:w=1.5:g=-5,equalizer=f=5000:t=q:w=1.2:g=4.0,treble=g=4.5:f=7500,volume=0.85,alimiter=limit=-1dB",
-    # Calm / Relaxed: gentle low-mid warmth + mellow presence + smooth dynamics
-    "calm": "equalizer=f=240:t=q:w=1.2:g=1.8,equalizer=f=3600:t=q:w=1.5:g=-1.5,acompressor=threshold=-20dB:ratio=2.8:attack=20:release=150,alimiter=limit=-1dB",
-    # Dramatic / Epic: cinematic pitch drop + authoritative sub-bass + presence
-    "dramatic": "volume=0.9,asetrate=22050*0.93,aresample=22050,atempo=1.0/0.93,equalizer=f=120:t=q:w=1.2:g=3.5,equalizer=f=2800:t=q:w=1.5:g=3,acompressor=threshold=-16dB:ratio=4:attack=10:release=120,alimiter=limit=-1dB",
-    # Fear / Nervous: tense pitch elevation + rapid tremolo flutter
-    "fear": "volume=0.88,asetrate=22050*1.12,aresample=22050,atempo=1.0/1.12,tremolo=f=6.5:d=0.35,equalizer=f=4000:t=q:w=1.5:g=2.5,alimiter=limit=-1dB",
-    # Serious / Authoritative: solid low presence + steady broadcast compression
-    "serious": "volume=0.92,asetrate=22050*0.95,aresample=22050,atempo=1.0/0.95,equalizer=f=180:t=q:w=1.2:g=2.5,acompressor=threshold=-16dB:ratio=3.5,alimiter=limit=-1dB",
-    # Curious / Inquisitive: upward pitch lift + light bright articulation
-    "curious": "volume=0.88,asetrate=22050*1.08,aresample=22050,atempo=1.0/1.08,equalizer=f=3200:t=q:w=1.5:g=2.5,alimiter=limit=-1dB",
+    # Excited / Cheerful: bright vocal presence + crisp articulation + energetic compression
+    "excited": "equalizer=f=3200:t=q:w=1.2:g=2.5,treble=g=2.0:f=6500,acompressor=threshold=-16dB:ratio=3.0:attack=8:release=80,alimiter=limit=-0.5dB",
+    # Sad / Melancholic: soft warm contour + gentle presence reduction + mellow dynamics
+    "sad": "volume=0.94,equalizer=f=260:t=q:w=1.0:g=1.8,equalizer=f=3600:t=q:w=1.2:g=-2.2,acompressor=threshold=-20dB:ratio=2.2:attack=25:release=180,alimiter=limit=-0.5dB",
+    # Angry / Aggressive: firm mid-range punch + forceful articulation + tight leveling
+    "angry": "equalizer=f=1800:t=q:w=1.2:g=3.5,equalizer=f=150:t=q:w=1.0:g=2.0,acompressor=threshold=-15dB:ratio=4.5:attack=5:release=60,alimiter=limit=-0.5dB",
+    # Whisper / Soft: breathy highpass + airy presence boost + intimate leveling
+    "whisper": "highpass=f=200,equalizer=f=400:t=q:w=1.2:g=-3.5,equalizer=f=5500:t=q:w=1.0:g=3.5,treble=g=3.0:f=8000,volume=0.90,alimiter=limit=-0.5dB",
+    # Calm / Relaxed: gentle low-mid warmth + smooth presence + transparent dynamics
+    "calm": "equalizer=f=220:t=q:w=1.0:g=1.5,equalizer=f=4000:t=q:w=1.2:g=-1.2,acompressor=threshold=-18dB:ratio=2.5:attack=20:release=140,alimiter=limit=-0.5dB",
+    # Dramatic / Epic: cinematic resonance + expressive presence
+    "dramatic": "equalizer=f=140:t=q:w=1.0:g=2.5,equalizer=f=3000:t=q:w=1.2:g=2.0,acompressor=threshold=-16dB:ratio=3.5:attack=15:release=120,alimiter=limit=-0.5dB",
+    # Fear / Nervous: tense presence + tight dynamic compression
+    "fear": "equalizer=f=3800:t=q:w=1.2:g=2.0,acompressor=threshold=-16dB:ratio=3.0:attack=10:release=70,alimiter=limit=-0.5dB",
+    # Serious / Authoritative: solid low resonance + steady broadcast leveling
+    "serious": "equalizer=f=180:t=q:w=1.0:g=2.0,acompressor=threshold=-16dB:ratio=3.0:attack=15:release=100,alimiter=limit=-0.5dB",
+    # Curious / Inquisitive: light bright articulation + clarity
+    "curious": "equalizer=f=3400:t=q:w=1.2:g=2.0,alimiter=limit=-0.5dB",
 }
 
 

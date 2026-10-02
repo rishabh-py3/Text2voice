@@ -82,15 +82,15 @@ def _get_piper_voice(model_path: Path):
 
 # Emotion synthesis tuning for Piper (neural variability & phoneme duration) and say (rate factor)
 EMOTION_PROFILES = {
-    "excited": {"length_scale": 0.85, "noise_scale": 0.85, "noise_w_scale": 0.95, "say_rate": 1.18},
-    "sad": {"length_scale": 1.22, "noise_scale": 0.55, "noise_w_scale": 0.65, "say_rate": 0.84},
-    "angry": {"length_scale": 0.90, "noise_scale": 0.90, "noise_w_scale": 0.95, "say_rate": 1.10},
-    "whisper": {"length_scale": 1.12, "noise_scale": 0.45, "noise_w_scale": 0.60, "say_rate": 0.90},
-    "calm": {"length_scale": 1.10, "noise_scale": 0.55, "noise_w_scale": 0.70, "say_rate": 0.92},
-    "dramatic": {"length_scale": 1.18, "noise_scale": 0.75, "noise_w_scale": 0.90, "say_rate": 0.86},
-    "fear": {"length_scale": 0.94, "noise_scale": 0.95, "noise_w_scale": 1.10, "say_rate": 1.12},
-    "serious": {"length_scale": 1.06, "noise_scale": 0.55, "noise_w_scale": 0.65, "say_rate": 0.94},
-    "curious": {"length_scale": 0.96, "noise_scale": 0.80, "noise_w_scale": 0.85, "say_rate": 1.05},
+    "excited": {"length_scale": 0.88, "noise_scale": 0.75, "noise_w_scale": 0.85, "say_rate": 1.15},
+    "sad": {"length_scale": 1.25, "noise_scale": 0.55, "noise_w_scale": 0.65, "say_rate": 0.85},
+    "angry": {"length_scale": 0.90, "noise_scale": 0.85, "noise_w_scale": 0.90, "say_rate": 1.10},
+    "whisper": {"length_scale": 1.15, "noise_scale": 0.45, "noise_w_scale": 0.55, "say_rate": 0.90},
+    "calm": {"length_scale": 1.12, "noise_scale": 0.58, "noise_w_scale": 0.68, "say_rate": 0.92},
+    "dramatic": {"length_scale": 1.20, "noise_scale": 0.70, "noise_w_scale": 0.85, "say_rate": 0.88},
+    "fear": {"length_scale": 0.92, "noise_scale": 0.85, "noise_w_scale": 0.95, "say_rate": 1.10},
+    "serious": {"length_scale": 1.08, "noise_scale": 0.55, "noise_w_scale": 0.65, "say_rate": 0.95},
+    "curious": {"length_scale": 0.95, "noise_scale": 0.75, "noise_w_scale": 0.80, "say_rate": 1.05},
     "neutral": {"length_scale": 1.00, "noise_scale": 0.667, "noise_w_scale": 0.80, "say_rate": 1.00},
 }
 
