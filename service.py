@@ -143,6 +143,10 @@ def humanize_text(text: str, emotion: str = "neutral") -> str:
 
 
 EMOTION_TAGS = {
+    "laugh": ["laugh", "laughter", "giggle", "cackle", "ha"],
+    "chuckle": ["chuckle", "snicker", "smirk", "heh"],
+    "sigh": ["sigh", "breath", "exhale", "relief"],
+    "gasp": ["gasp", "shock", "surprise", "pant"],
     "excited": ["excited", "happy", "cheerful", "joy", "enthusiastic", "thrilled"],
     "sad": ["sad", "sorrow", "gloomy", "depressed", "melancholy", "crying"],
     "angry": ["angry", "furious", "mad", "shouting", "aggressive"],

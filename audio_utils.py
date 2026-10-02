@@ -78,8 +78,16 @@ def change_speed(src: Path, dst: Path, speed: float) -> None:
 
 # Emotion acoustic prosody filters (Preserves pitch/identity, uses tempo, EQ, dynamics)
 EMOTION_FILTERS = {
-    # Whisper / Soft: cut body frequencies, boost extreme highs, low volume, no cracking
-    "whisper": "highpass=f=2000,treble=g=8,volume=0.4",
+    # Whisper / Soft: cut body frequencies, boost extreme highs, low volume, breathy intimacy
+    "whisper": "highpass=f=2000,treble=g=8,volume=0.45",
+    # Laugh / Laughter: upbeat cadence, slight pitch lift, bright playful acoustics
+    "laugh": "atempo=1.12,treble=g=4,equalizer=f=3000:t=q:w=1:g=3,volume=1.05",
+    # Chuckle / Snicker: relaxed cheerful warmth, light upbeat tempo
+    "chuckle": "atempo=1.08,treble=g=3,equalizer=f=2500:t=q:w=1:g=2,volume=1.02",
+    # Sigh / Exhale: gentle warm decrescendo, soothing low-pass roll-off
+    "sigh": "atempo=0.88,lowpass=f=4500,volume=0.85",
+    # Gasp / Surprise: fast sharp intake, thin low end, bright presence
+    "gasp": "atempo=1.15,highpass=f=600,treble=g=5,volume=1.08",
     # Sad / Melancholic: slower, muffled/darker EQ, softer
     "sad": "atempo=0.85,lowpass=f=3000,volume=0.8",
     # Excited / Cheerful: faster, brighter, dynamic

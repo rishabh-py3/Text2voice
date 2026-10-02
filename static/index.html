@@ -1759,9 +1759,13 @@
 
                   <div style="display: flex; gap: 6px; align-items: center; margin-left: auto; flex-wrap: wrap;">
                     <span style="font-size: 12px; color: var(--muted); font-weight: 500;">Emotions:</span>
+                    <button class="small-button emotion-chip" type="button" data-tag="[laugh]" title="Chatterbox Paralinguistic: Laugh / Laughter" style="font-size: 11.5px; height: 28px; padding: 0 8px;">😂 [laugh]</button>
+                    <button class="small-button emotion-chip" type="button" data-tag="[chuckle]" title="Chatterbox Paralinguistic: Chuckle / Snicker" style="font-size: 11.5px; height: 28px; padding: 0 8px;">🤭 [chuckle]</button>
+                    <button class="small-button emotion-chip" type="button" data-tag="[sigh]" title="Chatterbox Paralinguistic: Sigh / Exhale" style="font-size: 11.5px; height: 28px; padding: 0 8px;">😮‍💨 [sigh]</button>
+                    <button class="small-button emotion-chip" type="button" data-tag="[gasp]" title="Chatterbox Paralinguistic: Gasp / Shock" style="font-size: 11.5px; height: 28px; padding: 0 8px;">😲 [gasp]</button>
+                    <button class="small-button emotion-chip" type="button" data-tag="[whisper]" title="Soft & breathy whisper" style="font-size: 11.5px; height: 28px; padding: 0 8px;">🤫 [whisper]</button>
                     <button class="small-button emotion-chip" type="button" data-tag="[excited]" title="Happy & energetic" style="font-size: 11.5px; height: 28px; padding: 0 8px;">✨ [excited]</button>
-                    <button class="small-button emotion-chip" type="button" data-tag="[sad]" title="Melancholic & slow" style="font-size: 11.5px; height: 28px; padding: 0 8px;">😢 [sad]</button>
-                    <button class="small-button emotion-chip" type="button" data-tag="[whisper]" title="Soft & breathy" style="font-size: 11.5px; height: 28px; padding: 0 8px;">🤫 [whisper]</button>
+                    <button class="small-button emotion-chip" type="button" data-tag="[sad]" title="Melancholic & sorrowful" style="font-size: 11.5px; height: 28px; padding: 0 8px;">😢 [sad]</button>
                     <button class="small-button emotion-chip" type="button" data-tag="[angry]" title="Forceful & intense" style="font-size: 11.5px; height: 28px; padding: 0 8px;">🔥 [angry]</button>
                     <button class="small-button emotion-chip" type="button" data-tag="[calm]" title="Relaxed & gentle" style="font-size: 11.5px; height: 28px; padding: 0 8px;">🍃 [calm]</button>
                     <button class="small-button emotion-chip" type="button" data-tag="[dramatic]" title="Cinematic & deep" style="font-size: 11.5px; height: 28px; padding: 0 8px;">🎬 [dramatic]</button>
@@ -2108,7 +2112,8 @@
                 <div class="settings-desc">Engine responsible for generating speech</div>
               </div>
               <select id="settingsEngineSelect" class="styled-select">
-                <option value="auto">Auto (Best Quality: Kokoro / Piper)</option>
+                <option value="auto">Auto (Best Quality: Chatterbox / Kokoro / Piper)</option>
+                <option value="chatterbox">Chatterbox (Resemble AI - MIT Model)</option>
                 <option value="kokoro">Kokoro (Studio Quality AI - 82M)</option>
                 <option value="piper">Piper (Neural Fast AI)</option>
                 <option value="say">macOS Say (System)</option>

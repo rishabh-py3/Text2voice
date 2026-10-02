@@ -73,14 +73,48 @@ def _kokoro_ready() -> bool:
         return False
 
 
+_CHATTERBOX_CACHE = None
 _KOKORO_CACHE = None
+_PIPER_VOICE_CACHE = {}
+
+
+def _chatterbox_ready() -> bool:
+    try:
+        import chatterbox  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def _get_chatterbox():
+    global _CHATTERBOX_CACHE, _KOKORO_CACHE, _PIPER_VOICE_CACHE
+    # Conserve memory by evicting other models
+    _KOKORO_CACHE = None
+    _PIPER_VOICE_CACHE.clear()
+
+    if _CHATTERBOX_CACHE is None:
+        try:
+            import torch
+            from chatterbox.tts_turbo import ChatterboxTurboTTS
+            device = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
+            _CHATTERBOX_CACHE = ChatterboxTurboTTS.from_pretrained(device=device)
+        except Exception:
+            try:
+                import torch
+                from chatterbox.tts import ChatterboxTTS
+                device = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
+                _CHATTERBOX_CACHE = ChatterboxTTS.from_pretrained(device=device)
+            except Exception as e:
+                raise AudioError(f"Chatterbox initialization failed: {e}")
+    return _CHATTERBOX_CACHE
+
 
 def _get_kokoro():
-    global _KOKORO_CACHE
-    global _PIPER_VOICE_CACHE
+    global _CHATTERBOX_CACHE, _KOKORO_CACHE, _PIPER_VOICE_CACHE
     
     # Aggressive memory management for Render free tier (512MB RAM limit)
-    # Evict Piper from memory if Kokoro is loading
+    # Evict Piper and Chatterbox from memory if Kokoro is loading
+    _CHATTERBOX_CACHE = None
     _PIPER_VOICE_CACHE.clear()
     
     if _KOKORO_CACHE is None:
@@ -91,6 +125,7 @@ def _get_kokoro():
         _KOKORO_CACHE = Kokoro(str(KOKORO_MODEL_FILE), voices_path)
     return _KOKORO_CACHE
 
+
 def _piper_ready() -> bool:
     if not any(VOICES_DIR.glob("*.onnx")):
         return False
@@ -100,6 +135,7 @@ def _piper_ready() -> bool:
     except ImportError:
         return False
 
+
 def pick_engine() -> str:
     wanted = os.getenv("TTS_ENGINE", "auto").lower()
     if wanted != "auto":
@@ -108,6 +144,8 @@ def pick_engine() -> str:
         return "kokoro"
     if _piper_ready():
         return "piper"
+    if _chatterbox_ready():
+        return "chatterbox"
     if platform.system() == "Darwin" and shutil.which("say"):
         return "say"
     raise AudioError(
@@ -115,14 +153,13 @@ def pick_engine() -> str:
         "or ./setup_kokoro.sh for Kokoro studio AI voices."
     )
 
-_PIPER_VOICE_CACHE = {}
 
 def _get_piper_voice(model_path: Path):
-    global _KOKORO_CACHE
-    global _PIPER_VOICE_CACHE
+    global _CHATTERBOX_CACHE, _KOKORO_CACHE, _PIPER_VOICE_CACHE
     
     # Aggressive memory management for Render free tier
-    # Evict Kokoro from memory if Piper is loading
+    # Evict Kokoro and Chatterbox from memory if Piper is loading
+    _CHATTERBOX_CACHE = None
     _KOKORO_CACHE = None
     
     path_str = str(model_path)
@@ -134,6 +171,7 @@ def _get_piper_voice(model_path: Path):
         _PIPER_VOICE_CACHE[path_str] = PiperVoice.load(path_str)
     return _PIPER_VOICE_CACHE[path_str]
 
+
 def preload_voices():
     """Disabled to prevent Out of Memory (OOM) errors on Render free tier (512MB limit).
     Models will lazy-load into memory exactly when requested instead."""
@@ -142,25 +180,22 @@ def preload_voices():
 
 # Emotion synthesis tuning for Piper (neural variability & phoneme duration) and say (rate factor)
 EMOTION_PROFILES = {
-    # Excited: upbeat tempo, vibrant neural expressiveness and lively energy
-    "excited": {"length_scale": 0.90, "noise_scale": 0.72, "noise_w_scale": 0.85, "say_rate": 1.15},
-    # Sad: gentle reflective cadence, preserves 100% natural vocal timbre, sorrowful delivery
-    "sad": {"length_scale": 1.16, "noise_scale": 0.60, "noise_w_scale": 0.72, "say_rate": 0.85},
-    # Angry: firm cadence, punchy articulation
-    "angry": {"length_scale": 0.92, "noise_scale": 0.75, "noise_w_scale": 0.88, "say_rate": 1.15},
-    # Whisper: slow breathy cadence, intimate soft delivery
-    "whisper": {"length_scale": 1.12, "noise_scale": 0.48, "noise_w_scale": 0.58, "say_rate": 0.88},
-    # Calm: gentle relaxed cadence, smooth steady rhythm
-    "calm": {"length_scale": 1.06, "noise_scale": 0.62, "noise_w_scale": 0.74, "say_rate": 0.94},
-    # Dramatic: expansive deliberate cadence, cinematic weight
-    "dramatic": {"length_scale": 1.16, "noise_scale": 0.68, "noise_w_scale": 0.82, "say_rate": 0.88},
-    # Fear: fast anxious flutter, tense cadence
-    "fear": {"length_scale": 0.92, "noise_scale": 0.75, "noise_w_scale": 0.88, "say_rate": 1.12},
-    # Serious: deliberate steady cadence, authoritative
-    "serious": {"length_scale": 1.06, "noise_scale": 0.60, "noise_w_scale": 0.70, "say_rate": 0.94},
-    # Curious: light upward questioning inflection
-    "curious": {"length_scale": 0.96, "noise_scale": 0.70, "noise_w_scale": 0.80, "say_rate": 1.04},
-    "neutral": {"length_scale": 1.00, "noise_scale": 0.667, "noise_w_scale": 0.80, "say_rate": 1.00},
+    # Paralinguistic expressions (inspired by Resemble AI Chatterbox)
+    "laugh": {"length_scale": 0.88, "noise_scale": 0.80, "noise_w_scale": 0.90, "exaggeration": 1.1, "say_rate": 1.15},
+    "chuckle": {"length_scale": 0.92, "noise_scale": 0.74, "noise_w_scale": 0.85, "exaggeration": 0.9, "say_rate": 1.10},
+    "sigh": {"length_scale": 1.18, "noise_scale": 0.52, "noise_w_scale": 0.65, "exaggeration": 0.4, "say_rate": 0.85},
+    "gasp": {"length_scale": 0.85, "noise_scale": 0.85, "noise_w_scale": 0.92, "exaggeration": 1.2, "say_rate": 1.20},
+    # Core emotions
+    "excited": {"length_scale": 0.88, "noise_scale": 0.78, "noise_w_scale": 0.88, "exaggeration": 1.0, "say_rate": 1.15},
+    "sad": {"length_scale": 1.20, "noise_scale": 0.55, "noise_w_scale": 0.68, "exaggeration": 0.7, "say_rate": 0.85},
+    "angry": {"length_scale": 0.90, "noise_scale": 0.80, "noise_w_scale": 0.90, "exaggeration": 1.2, "say_rate": 1.15},
+    "whisper": {"length_scale": 1.15, "noise_scale": 0.45, "noise_w_scale": 0.55, "exaggeration": 0.3, "say_rate": 0.85},
+    "calm": {"length_scale": 1.08, "noise_scale": 0.60, "noise_w_scale": 0.72, "exaggeration": 0.2, "say_rate": 0.92},
+    "dramatic": {"length_scale": 1.18, "noise_scale": 0.70, "noise_w_scale": 0.84, "exaggeration": 1.1, "say_rate": 0.88},
+    "fear": {"length_scale": 0.90, "noise_scale": 0.82, "noise_w_scale": 0.90, "exaggeration": 0.95, "say_rate": 1.15},
+    "serious": {"length_scale": 1.06, "noise_scale": 0.58, "noise_w_scale": 0.68, "exaggeration": 0.4, "say_rate": 0.94},
+    "curious": {"length_scale": 0.95, "noise_scale": 0.72, "noise_w_scale": 0.82, "exaggeration": 0.8, "say_rate": 1.05},
+    "neutral": {"length_scale": 1.00, "noise_scale": 0.667, "noise_w_scale": 0.80, "exaggeration": 0.5, "say_rate": 1.00},
 }
 
 
@@ -175,13 +210,39 @@ def synth_segment_pcm(text: str, voice: str, engine: str, speed: float = 1.0, em
     emo_profile = EMOTION_PROFILES.get(emotion, EMOTION_PROFILES["neutral"])
     emo_length_mult = emo_profile["length_scale"]
 
-    if engine == "piper":
+    if engine == "chatterbox":
+        cb = _get_chatterbox()
+        exaggeration = float(emo_profile.get("exaggeration", 0.5))
+        try:
+            # Check if reference audio exists for the voice persona
+            ref_audio = VOICES_DIR / f"{VOICES[voice]['piper']}.wav"
+            prompt_path = str(ref_audio) if ref_audio.exists() else None
+            if prompt_path:
+                wav = cb.generate(text, audio_prompt_path=prompt_path, exaggeration=exaggeration)
+            else:
+                wav = cb.generate(text, exaggeration=exaggeration)
+            
+            import numpy as np
+            sr = getattr(cb, "sr", 24000)
+            samples = wav.squeeze().cpu().numpy()
+            if sr != 22050 and len(samples) > 0:
+                old_indices = np.arange(len(samples))
+                new_length = int(len(samples) * 22050 / sr)
+                new_indices = np.linspace(0, len(samples) - 1, new_length)
+                samples = np.interp(new_indices, old_indices, samples).astype(np.float32)
+            return (np.clip(samples, -1.0, 1.0) * 32767).astype(np.int16).tobytes()
+        except Exception as e:
+            raise AudioError(f"Chatterbox synthesis failed: {e}")
+
+    elif engine == "piper":
         model = VOICES_DIR / f"{VOICES[voice]['piper']}.onnx"
         if not model.exists():
             raise AudioError(f"Voice file missing: {model.name}. Run ./setup_voices.sh")
 
-        base_length_scale = 1.0 / max(speed, 0.1)
+        base_length_scale = (1.0 / max(speed, 0.1)) * emo_length_mult
         length_scale = max(0.4, min(2.5, base_length_scale))
+        noise_scale = float(emo_profile["noise_scale"])
+        noise_w_scale = float(emo_profile["noise_w_scale"])
 
         try:
             try:
@@ -189,12 +250,10 @@ def synth_segment_pcm(text: str, voice: str, engine: str, speed: float = 1.0, em
             except ImportError:
                 from piper import SynthesisConfig
             piper_voice = _get_piper_voice(model)
-            # Default stable neural synthesis parameters (noise_scale=0.667, noise_w_scale=0.8)
-            # This ensures the neural vocoder NEVER cracks and words flow with continuous human co-articulation
             syn_cfg = SynthesisConfig(
                 length_scale=length_scale,
-                noise_scale=0.667,
-                noise_w_scale=0.8
+                noise_scale=noise_scale,
+                noise_w_scale=noise_w_scale,
             )
             chunks = list(piper_voice.synthesize(text, syn_config=syn_cfg))
             if chunks:
@@ -208,8 +267,8 @@ def synth_segment_pcm(text: str, voice: str, engine: str, speed: float = 1.0, em
                 sys.executable, "-m", "piper",
                 "-m", str(model),
                 "--length-scale", f"{length_scale:.3f}",
-                "--noise-scale", "0.667",
-                "--noise-w", "0.800",
+                "--noise-scale", f"{noise_scale:.3f}",
+                "--noise-w", f"{noise_w_scale:.3f}",
                 "-f", tmp_f.name,
             ]
             proc = subprocess.run(cmd, input=text, capture_output=True, text=True, timeout=120)
@@ -222,7 +281,7 @@ def synth_segment_pcm(text: str, voice: str, engine: str, speed: float = 1.0, em
     elif engine == "kokoro":
         k = _get_kokoro()
         kokoro_voice_name = VOICES[voice].get("kokoro", "am_adam")
-        kokoro_speed = float(max(0.5, min(2.0, speed)))
+        kokoro_speed = float(max(0.5, min(2.0, speed * (1.0 / emo_length_mult))))
         try:
             samples, sr = k.create(text, voice=kokoro_voice_name, speed=kokoro_speed, lang="en-us")
         except Exception as e:

@@ -477,7 +477,7 @@ def get_settings(request: Request):
     return {
         "engine": RUNTIME_SETTINGS["engine"],
         "active_engine": active_engine,
-        "available_engines": ["auto", "kokoro", "piper", "say", "dummy"],
+        "available_engines": ["auto", "chatterbox", "kokoro", "piper", "say", "dummy"],
         "default_voice": RUNTIME_SETTINGS["default_voice"],
         "default_speed": RUNTIME_SETTINGS["default_speed"],
         "default_format": RUNTIME_SETTINGS["default_format"],
