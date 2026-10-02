@@ -42,6 +42,14 @@ VOICES = {
         "tone": "Balanced & Modern",
         "description": "Approachable, crisp, and adaptive AI persona ideal for conversational dialogue and assistants.",
     },
+    "Adam": {
+        "gender": "Male",
+        "piper": "en_US-bryce-medium",
+        "say": "Tom",
+        "accent": "American (US)",
+        "tone": "Energetic & Friendly",
+        "description": "A young male voice with an energetic and friendly tone, ideal for social media tutorials, reels, and video narration.",
+    },
 }
 
 

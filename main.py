@@ -331,8 +331,12 @@ def voice_sample(name: str):
         raise HTTPException(404, "Unknown voice")
     if name not in _sample_cache:
         try:
+            if name == "Adam":
+                sample_text = "Hey everyone! Let me show you how to use the text-to-speech feature on Instagram Reels. Thanks for watching!"
+            else:
+                sample_text = f"Hi, I'm {name}. Welcome to AI Voice Studio. This is how I sound."
             _sample_cache[name] = service.synthesize(
-                f"Hi, I'm {name}. Welcome to AI Voice Studio. This is how I sound.",
+                sample_text,
                 name, 1.0, "mp3"
             )
         except AudioError as e:

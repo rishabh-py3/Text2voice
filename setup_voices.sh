@@ -10,7 +10,7 @@ elif command -v python3 &>/dev/null; then
 elif command -v python &>/dev/null; then
   PYTHON="python"
 fi
-for v in en_US-amy-medium en_US-ryan-medium en_US-lessac-medium; do
+for v in en_US-amy-medium en_US-ryan-medium en_US-lessac-medium en_US-bryce-medium; do
   "$PYTHON" -m piper.download_voices "$v" --data-dir voices
 done
 echo "Voices ready in ./voices"
