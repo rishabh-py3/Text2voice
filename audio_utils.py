@@ -77,27 +77,26 @@ def change_speed(src: Path, dst: Path, speed: float) -> None:
 
 
 # Emotion acoustic prosody filters (Acoustic presence, warmth, contour & dynamics)
-# Emotion acoustic prosody filters (Acoustic presence, warmth, contour & dynamics)
-# Note: Pitch & tempo are handled naturally at synthesis time to preserve speaker identity 100%.
+# Emotion acoustic prosody filters (Real pitch contour, intonation, breathiness & dynamic presence)
 EMOTION_FILTERS = {
-    # Excited / Cheerful: bright vocal presence + crisp articulation + energetic leveling
-    "excited": "equalizer=f=3200:t=q:w=1.0:g=1.8,treble=g=1.5:f=6500,volume=1.05,alimiter=limit=-0.3dB",
-    # Sad / Melancholic: soft warm contour + gentle presence reduction + mellow dynamics (preserves 100% vocal identity)
-    "sad": "volume=0.94,equalizer=f=220:t=q:w=0.8:g=1.2,equalizer=f=4500:t=q:w=1.0:g=-1.2,alimiter=limit=-0.5dB",
-    # Angry / Aggressive: firm mid-range punch + forceful articulation + tight leveling
-    "angry": "equalizer=f=1800:t=q:w=1.0:g=2.2,acompressor=threshold=-12dB:ratio=3.5:attack=5:release=50,volume=1.04,alimiter=limit=-0.3dB",
-    # Whisper / Soft: breathy highpass + airy presence boost + intimate leveling
-    "whisper": "highpass=f=180,equalizer=f=350:t=q:w=1.0:g=-2.5,treble=g=2.5:f=7000,volume=0.90,alimiter=limit=-0.8dB",
-    # Calm / Relaxed: gentle low-mid warmth + smooth presence + transparent dynamics
-    "calm": "equalizer=f=220:t=q:w=1.0:g=1.0,equalizer=f=3800:t=q:w=1.0:g=-1.0,volume=0.96,alimiter=limit=-0.5dB",
-    # Dramatic / Epic: cinematic resonance + expressive presence
-    "dramatic": "equalizer=f=120:t=q:w=1.0:g=2.2,equalizer=f=2800:t=q:w=1.0:g=1.5,volume=1.02,alimiter=limit=-0.5dB",
-    # Fear / Nervous: tense presence + tight dynamic compression
-    "fear": "equalizer=f=3600:t=q:w=1.0:g=1.8,volume=0.96,alimiter=limit=-0.5dB",
-    # Serious / Authoritative: solid low resonance + steady broadcast leveling
-    "serious": "equalizer=f=180:t=q:w=1.0:g=1.8,volume=0.98,alimiter=limit=-0.5dB",
-    # Curious / Inquisitive: light bright articulation + clarity
-    "curious": "equalizer=f=3200:t=q:w=1.0:g=1.5,volume=1.02,alimiter=limit=-0.5dB",
+    # Whisper / Soft: authentic unvoiced breathy acoustic shaping (NO neural crackles, crystal clear intimate whisper)
+    "whisper": "highpass=f=240,equalizer=f=320:t=q:w=1.2:g=-10,equalizer=f=2600:t=q:w=1.0:g=3.0,treble=g=2.5:f=6000,volume=0.82,acompressor=threshold=-18dB:ratio=2.5:attack=15:release=100,alimiter=limit=-1dB",
+    # Sad / Melancholic: real pitch drop (-6.5%) into a somber, sorrowful register + warm gentle contour
+    "sad": "asetrate=20617,aresample=22050,atempo=1.016,equalizer=f=240:t=q:w=0.8:g=1.5,equalizer=f=4500:t=q:w=1.0:g=-2.5,volume=0.92,alimiter=limit=-0.5dB",
+    # Excited / Cheerful: real pitch elevation (+7%) into an upbeat cheerful register + crisp brilliance
+    "excited": "asetrate=23594,aresample=22050,atempo=0.98,equalizer=f=3400:t=q:w=1.0:g=2.2,treble=g=2.0:f=6500,volume=1.06,alimiter=limit=-0.3dB",
+    # Angry / Aggressive: firm authoritative pitch + forceful mid-range bite + tight aggressive compressor
+    "angry": "asetrate=21168,aresample=22050,atempo=1.06,equalizer=f=1800:t=q:w=1.0:g=3.0,equalizer=f=150:t=q:w=1.0:g=2.0,acompressor=threshold=-14dB:ratio=4:attack=5:release=50,volume=1.05,alimiter=limit=-0.3dB",
+    # Calm / Relaxed: gentle soothing pitch contour + warm steady presence
+    "calm": "asetrate=21609,aresample=22050,atempo=0.98,equalizer=f=220:t=q:w=1.0:g=1.2,equalizer=f=4000:t=q:w=1.0:g=-1.2,volume=0.96,alimiter=limit=-0.5dB",
+    # Dramatic / Epic: cinematic deep pitch (-9%) + powerful sub-bass chest resonance
+    "dramatic": "asetrate=20066,aresample=22050,atempo=1.02,equalizer=f=110:t=q:w=1.0:g=3.5,equalizer=f=2800:t=q:w=1.0:g=2.0,volume=1.04,alimiter=limit=-0.5dB",
+    # Fear / Nervous: tense anxious pitch + dynamic clamp
+    "fear": "asetrate=22932,aresample=22050,atempo=0.98,equalizer=f=3600:t=q:w=1.0:g=2.0,acompressor=threshold=-16dB:ratio=3:attack=10:release=60,volume=0.96,alimiter=limit=-0.5dB",
+    # Serious / Authoritative: steady formal low resonance
+    "serious": "asetrate=21168,aresample=22050,atempo=1.02,equalizer=f=180:t=q:w=1.0:g=2.2,volume=0.98,alimiter=limit=-0.5dB",
+    # Curious / Inquisitive: light upward questioning inflection
+    "curious": "asetrate=23153,aresample=22050,atempo=0.96,equalizer=f=3200:t=q:w=1.0:g=1.8,volume=1.02,alimiter=limit=-0.5dB",
 }
 
 

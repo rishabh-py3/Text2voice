@@ -121,8 +121,8 @@ def humanize_text(text: str, emotion: str = "neutral") -> str:
     text = re.sub(r"([.,!?;:])([A-Za-z0-9])", r"\1 \2", text)
 
     # 9. Emotion-aware prosody punctuation
-    if emotion == "sad":
-        # Soften shouting marks to sorrowful cadence
+    if emotion in ("sad", "whisper", "calm"):
+        # Soften shouting marks to sorrowful or quiet intimate cadence
         text = re.sub(r"!+", ".", text)
     elif emotion == "excited":
         # Ensure sentence triggers neural rising pitch inflection

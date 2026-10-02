@@ -132,7 +132,7 @@ def synth_segment_pcm(text: str, voice: str, engine: str, speed: float = 1.0, em
             raise AudioError(f"Voice file missing: {model.name}. Run ./setup_voices.sh")
 
         base_length_scale = 1.0 / max(speed, 0.1)
-        length_scale = max(0.35, min(2.5, base_length_scale * emo_length_mult))
+        length_scale = max(0.4, min(2.5, base_length_scale))
 
         try:
             try:
@@ -140,10 +140,12 @@ def synth_segment_pcm(text: str, voice: str, engine: str, speed: float = 1.0, em
             except ImportError:
                 from piper import SynthesisConfig
             piper_voice = _get_piper_voice(model)
+            # Default stable neural synthesis parameters (noise_scale=0.667, noise_w_scale=0.8)
+            # This ensures the neural vocoder NEVER cracks and words flow with continuous human co-articulation
             syn_cfg = SynthesisConfig(
                 length_scale=length_scale,
-                noise_scale=emo_profile["noise_scale"],
-                noise_w_scale=emo_profile["noise_w_scale"]
+                noise_scale=0.667,
+                noise_w_scale=0.8
             )
             chunks = list(piper_voice.synthesize(text, syn_config=syn_cfg))
             if chunks:
@@ -157,8 +159,8 @@ def synth_segment_pcm(text: str, voice: str, engine: str, speed: float = 1.0, em
                 sys.executable, "-m", "piper",
                 "-m", str(model),
                 "--length-scale", f"{length_scale:.3f}",
-                "--noise-scale", f"{emo_profile['noise_scale']:.3f}",
-                "--noise-w", f"{emo_profile['noise_w_scale']:.3f}",
+                "--noise-scale", "0.667",
+                "--noise-w", "0.800",
                 "-f", tmp_f.name,
             ]
             proc = subprocess.run(cmd, input=text, capture_output=True, text=True, timeout=120)
