@@ -610,14 +610,9 @@
     btn.disabled = true;
     btn.classList.add("btn-loading-active");
     btn.innerHTML = `
-      <video class="btn-video-bg" autoplay loop muted playsinline src="/static/btn_loading.mp4"></video>
       <div class="btn-content-overlay">
-        <div class="btn-equalizer">
-          <div class="btn-equalizer-bar"></div>
-          <div class="btn-equalizer-bar"></div>
-          <div class="btn-equalizer-bar"></div>
-          <div class="btn-equalizer-bar"></div>
-          <div class="btn-equalizer-bar"></div>
+        <div class="btn-video-mini-box">
+          <video class="btn-video-mini" autoplay loop muted playsinline src="/static/btn_loading.mp4"></video>
         </div>
         <span>${escapeHtml(labelText || "Generating Voice…")}</span>
       </div>
