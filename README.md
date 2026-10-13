@@ -104,8 +104,3 @@ This project includes a `render.yaml` file so it can be deployed on [Render](htt
 - GitHub: [@rishabh-py3](https://github.com/rishabh-py3)
 - Project Link: [github.com/rishabh-py3/Text2voice](https://github.com/rishabh-py3/Text2voice)
 
----
-
-## 📄 License
-
-This project is open-source under the [MIT License](LICENSE).
