@@ -309,3 +309,139 @@ def migrate_guest_files(from_guest_id: str, to_user_id: str):
     with get_db() as conn:
         conn.execute("UPDATE files SET user_id = ? WHERE user_id = ?", (to_user_id, from_guest_id))
         conn.commit()
+
+
+def cleanup_guest_session_and_files(user_id: str, token: Optional[str] = None) -> int:
+    """Immediately delete all generated audio files and DB records for a guest user
+    when they close the website. Never touches registered user accounts.
+    """
+    if not user_id or not user_id.startswith("guest_"):
+        return 0
+
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT filename FROM files WHERE user_id = ?", (user_id,))
+        filenames = [r["filename"] for r in cur.fetchall()]
+
+        conn.execute("DELETE FROM files WHERE user_id = ?", (user_id,))
+        if token:
+            conn.execute("DELETE FROM sessions WHERE (user_id = ? OR token = ?) AND is_guest = 1", (user_id, token))
+        else:
+            conn.execute("DELETE FROM sessions WHERE user_id = ? AND is_guest = 1", (user_id,))
+        conn.commit()
+
+    deleted_count = 0
+    for fname in filenames:
+        if not fname:
+            continue
+        fpath = OUTPUTS_DIR / fname
+        if fpath.exists():
+            try:
+                fpath.unlink()
+                deleted_count += 1
+            except OSError:
+                pass
+    return deleted_count
+
+
+def enforce_guest_file_limit(user_id: str, max_files: int = 10):
+    """Prevent storage overload during an active guest session by capping guest files."""
+    if not user_id or not user_id.startswith("guest_"):
+        return
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, filename FROM files WHERE user_id = ? ORDER BY timestamp DESC",
+            (user_id,),
+        )
+        rows = cur.fetchall()
+        if len(rows) <= max_files:
+            return
+        to_remove = rows[max_files:]
+        ids_to_delete = [r["id"] for r in to_remove]
+        filenames = [r["filename"] for r in to_remove]
+        conn.executemany("DELETE FROM files WHERE id = ?", [(fid,) for fid in ids_to_delete])
+        conn.commit()
+
+    for fname in filenames:
+        if fname:
+            fpath = OUTPUTS_DIR / fname
+            if fpath.exists():
+                try:
+                    fpath.unlink()
+                except OSError:
+                    pass
+
+
+def cleanup_stale_guests(max_idle_seconds: int = 900) -> int:
+    """Purge inactive guest sessions, guest files, and any orphaned audio files on disk."""
+    now = int(datetime.datetime.now().timestamp())
+    cutoff = now - max_idle_seconds
+    filenames_to_delete: set[str] = set()
+
+    with get_db() as conn:
+        cur = conn.cursor()
+        # 1. Find expired guest sessions
+        cur.execute(
+            "SELECT user_id FROM sessions WHERE is_guest = 1 AND last_active < ?",
+            (cutoff,),
+        )
+        stale_guest_ids = {r["user_id"] for r in cur.fetchall() if r["user_id"]}
+
+        # 2. Also find any guest_* files whose session no longer exists or are older than cutoff
+        cur.execute(
+            """
+            SELECT DISTINCT f.user_id
+            FROM files f
+            LEFT JOIN sessions s ON f.user_id = s.user_id
+            WHERE f.user_id LIKE 'guest_%'
+              AND (s.user_id IS NULL OR f.timestamp < ?)
+            """,
+            (cutoff,),
+        )
+        for r in cur.fetchall():
+            if r["user_id"]:
+                stale_guest_ids.add(r["user_id"])
+
+        for gid in stale_guest_ids:
+            cur.execute("SELECT filename FROM files WHERE user_id = ?", (gid,))
+            for row in cur.fetchall():
+                if row["filename"]:
+                    filenames_to_delete.add(row["filename"])
+            conn.execute("DELETE FROM files WHERE user_id = ?", (gid,))
+            conn.execute("DELETE FROM sessions WHERE user_id = ? AND is_guest = 1", (gid,))
+
+        conn.execute("DELETE FROM sessions WHERE is_guest = 1 AND last_active < ?", (cutoff,))
+        conn.commit()
+
+        # 3. Check for orphaned audio files in outputs/ not referenced in DB
+        cur.execute("SELECT filename FROM files")
+        valid_filenames = {r["filename"] for r in cur.fetchall() if r["filename"]}
+
+    deleted = 0
+    for fname in filenames_to_delete:
+        fpath = OUTPUTS_DIR / fname
+        if fpath.exists():
+            try:
+                fpath.unlink()
+                deleted += 1
+            except OSError:
+                pass
+
+    # Sweep any unreferenced tts_* or vts_* audio files in outputs/
+    try:
+        for p in OUTPUTS_DIR.iterdir():
+            if p.is_file() and p.suffix.lower() in (".mp3", ".wav") and (
+                p.name.startswith("tts_") or p.name.startswith("vts_")
+            ):
+                if p.name not in valid_filenames:
+                    try:
+                        p.unlink()
+                        deleted += 1
+                    except OSError:
+                        pass
+    except OSError:
+        pass
+
+    return deleted
+

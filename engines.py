@@ -24,7 +24,9 @@ VOICES = {
         "kokoro": "af_sarah",
         "say": "Samantha",
         "accent": "American (US)",
-        "tone": "Warm & Natural",
+        "tone": "Clear & Warm",
+        "tags": ["Clear", "Warm"],
+        "speed_Bias": 1.0,
         "description": "Clear, natural, and expressive tone. Great for narration, audiobooks, and tutorials.",
     },
     "Ethan": {
@@ -33,8 +35,10 @@ VOICES = {
         "kokoro": "am_michael",
         "say": "Alex",
         "accent": "American (US)",
-        "tone": "Deep & Confident",
-        "description": "Articulate, resonant, and energetic voice tailored for podcasts, presentations, and announcements.",
+        "tone": "Deep & Strong",
+        "tags": ["Deep", "Strong"],
+        "speed_Bias": 0.98,
+        "description": "Articulate, resonant, and confident voice tailored for podcasts, presentations, and announcements.",
     },
     "Nova": {
         "gender": "Neutral",
@@ -42,7 +46,9 @@ VOICES = {
         "kokoro": "bf_emma",
         "say": "Daniel",
         "accent": "American (US)",
-        "tone": "Balanced & Modern",
+        "tone": "Balanced & Smooth",
+        "tags": ["Balanced", "Smooth"],
+        "speed_Bias": 1.0,
         "description": "Approachable, crisp, and adaptive AI persona ideal for conversational dialogue and assistants.",
     },
     "Adam": {
@@ -51,10 +57,57 @@ VOICES = {
         "kokoro": "am_adam",
         "say": "Tom",
         "accent": "American (US)",
-        "tone": "Energetic & Friendly",
-        "description": "A young male voice with an energetic and friendly tone, ideal for social media tutorials, reels, and video narration.",
+        "tone": "Rich & Narrative",
+        "tags": ["Rich", "Narrative"],
+        "speed_Bias": 1.02,
+        "description": "A rich male voice with an engaging narrative tone, ideal for social media tutorials, reels, and storytelling.",
+    },
+    "Luna": {
+        "gender": "Female",
+        "piper": "en_US-amy-medium",
+        "kokoro": "af_nicole",
+        "say": "Victoria",
+        "accent": "American (US)",
+        "tone": "Soft & Calm",
+        "tags": ["Soft", "Calm"],
+        "speed_Bias": 0.92,
+        "description": "Gentle, soothing, and relaxed female voice suited for meditation, bedtime stories, and calm explainers.",
+    },
+    "Zoe": {
+        "gender": "Female",
+        "piper": "en_US-lessac-medium",
+        "kokoro": "af_bella",
+        "say": "Karen",
+        "accent": "American (US)",
+        "tone": "Bright & Young",
+        "tags": ["Bright", "Young"],
+        "speed_Bias": 1.07,
+        "description": "Upbeat, lively, and youthful voice perfect for creators, vlogs, and energetic product demos.",
+    },
+    "Noah": {
+        "gender": "Male",
+        "piper": "en_US-bryce-medium",
+        "kokoro": "am_michael",
+        "say": "Fred",
+        "accent": "American (US)",
+        "tone": "Casual & Friendly",
+        "tags": ["Casual", "Friendly"],
+        "speed_Bias": 1.04,
+        "description": "Conversational, warm, and relatable everyday voice for tutorials, interviews, and casual commentary.",
+    },
+    "Echo": {
+        "gender": "Neutral",
+        "piper": "en_US-ryan-medium",
+        "kokoro": "bf_isabella",
+        "say": "Moira",
+        "accent": "Global (AI)",
+        "tone": "Futuristic & Airy",
+        "tags": ["Futuristic", "Airy"],
+        "speed_Bias": 0.96,
+        "description": "Sleek, modern, and atmospheric synthetic persona designed for sci-fi interfaces and digital assistants.",
     },
 }
+
 
 KOKORO_DIR = VOICES_DIR / "kokoro"
 KOKORO_MODEL_FILE = KOKORO_DIR / "kokoro-v0_19.onnx"
@@ -73,9 +126,25 @@ def _kokoro_ready() -> bool:
         return False
 
 
+from collections import OrderedDict
+import gc
+
 _CHATTERBOX_CACHE = None
 _KOKORO_CACHE = None
 _PIPER_VOICE_CACHE = {}
+_PCM_CACHE: OrderedDict[tuple, bytes] = OrderedDict()
+_MAX_PCM_CACHE_ITEMS = 12
+
+
+def clear_runtime_caches(evict_models: bool = False):
+    """Clear temporary PCM synthesis caches (and optionally model caches) to free RAM."""
+    global _CHATTERBOX_CACHE, _KOKORO_CACHE
+    _PCM_CACHE.clear()
+    if evict_models:
+        _CHATTERBOX_CACHE = None
+        _KOKORO_CACHE = None
+        _PIPER_VOICE_CACHE.clear()
+    gc.collect()
 
 
 def _chatterbox_ready() -> bool:
@@ -91,6 +160,7 @@ def _get_chatterbox():
     # Conserve memory by evicting other models
     _KOKORO_CACHE = None
     _PIPER_VOICE_CACHE.clear()
+    gc.collect()
 
     if _CHATTERBOX_CACHE is None:
         try:
@@ -116,6 +186,7 @@ def _get_kokoro():
     # Evict Piper and Chatterbox from memory if Kokoro is loading
     _CHATTERBOX_CACHE = None
     _PIPER_VOICE_CACHE.clear()
+    gc.collect()
     
     if _KOKORO_CACHE is None:
         if not _kokoro_ready():
@@ -140,10 +211,11 @@ def pick_engine() -> str:
     wanted = os.getenv("TTS_ENGINE", "auto").lower()
     if wanted != "auto":
         return wanted
-    if _kokoro_ready():
-        return "kokoro"
+    # Prioritize Piper in auto mode: <80ms ultra-fast CPU synthesis & low ~60MB RAM footprint
     if _piper_ready():
         return "piper"
+    if _kokoro_ready():
+        return "kokoro"
     if _chatterbox_ready():
         return "chatterbox"
     if platform.system() == "Darwin" and shutil.which("say"):
@@ -166,6 +238,7 @@ def _get_piper_voice(model_path: Path):
     if path_str not in _PIPER_VOICE_CACHE:
         # Keep only ONE Piper voice in memory at a time to prevent OOM
         _PIPER_VOICE_CACHE.clear()
+        gc.collect()
         
         from piper import PiperVoice
         _PIPER_VOICE_CACHE[path_str] = PiperVoice.load(path_str)
@@ -173,9 +246,14 @@ def _get_piper_voice(model_path: Path):
 
 
 def preload_voices():
-    """Disabled to prevent Out of Memory (OOM) errors on Render free tier (512MB limit).
-    Models will lazy-load into memory exactly when requested instead."""
-    pass
+    """Preload default voice ('Aria') if using lightweight Piper so first TTS request is instant (<50ms)."""
+    try:
+        if pick_engine() == "piper":
+            default_model = VOICES_DIR / f"{VOICES['Aria']['piper']}.onnx"
+            if default_model.exists():
+                _get_piper_voice(default_model)
+    except Exception:
+        pass
 
 
 # Emotion synthesis tuning for Piper (neural variability & phoneme duration) and say (rate factor)
@@ -195,7 +273,8 @@ EMOTION_PROFILES = {
     "fear": {"length_scale": 0.90, "noise_scale": 0.82, "noise_w_scale": 0.90, "exaggeration": 0.95, "say_rate": 1.15},
     "serious": {"length_scale": 1.06, "noise_scale": 0.58, "noise_w_scale": 0.68, "exaggeration": 0.4, "say_rate": 0.94},
     "curious": {"length_scale": 0.95, "noise_scale": 0.72, "noise_w_scale": 0.82, "exaggeration": 0.8, "say_rate": 1.05},
-    "neutral": {"length_scale": 1.00, "noise_scale": 0.667, "noise_w_scale": 0.80, "exaggeration": 0.5, "say_rate": 1.00},
+    # Studio-tuned low-noise profile for smooth, artifact-free articulation
+    "neutral": {"length_scale": 0.98, "noise_scale": 0.600, "noise_w_scale": 0.720, "exaggeration": 0.5, "say_rate": 1.00},
 }
 
 
@@ -207,8 +286,15 @@ def synth_segment_pcm(text: str, voice: str, engine: str, speed: float = 1.0, em
     if not any(c.isalnum() for c in text):
         return b"\x00\x00" * int(22050 * 0.3)
 
+    cache_key = (engine, voice, round(speed, 2), emotion, text)
+    if len(text) <= 400 and cache_key in _PCM_CACHE:
+        _PCM_CACHE.move_to_end(cache_key)
+        return _PCM_CACHE[cache_key]
+
     emo_profile = EMOTION_PROFILES.get(emotion, EMOTION_PROFILES["neutral"])
     emo_length_mult = emo_profile["length_scale"]
+    speed = speed * float(VOICES[voice].get("speed_Bias", 1.0))
+
 
     if engine == "chatterbox":
         cb = _get_chatterbox()
@@ -230,7 +316,12 @@ def synth_segment_pcm(text: str, voice: str, engine: str, speed: float = 1.0, em
                 new_length = int(len(samples) * 22050 / sr)
                 new_indices = np.linspace(0, len(samples) - 1, new_length)
                 samples = np.interp(new_indices, old_indices, samples).astype(np.float32)
-            return (np.clip(samples, -1.0, 1.0) * 32767).astype(np.int16).tobytes()
+            pcm_out = (np.clip(samples, -1.0, 1.0) * 32767).astype(np.int16).tobytes()
+            if len(text) <= 400:
+                _PCM_CACHE[cache_key] = pcm_out
+                if len(_PCM_CACHE) > _MAX_PCM_CACHE_ITEMS:
+                    _PCM_CACHE.popitem(last=False)
+            return pcm_out
         except Exception as e:
             raise AudioError(f"Chatterbox synthesis failed: {e}")
 
@@ -257,7 +348,12 @@ def synth_segment_pcm(text: str, voice: str, engine: str, speed: float = 1.0, em
             )
             chunks = list(piper_voice.synthesize(text, syn_config=syn_cfg))
             if chunks:
-                return b"".join(c.audio_int16_bytes for c in chunks)
+                pcm_out = b"".join(c.audio_int16_bytes for c in chunks)
+                if len(text) <= 400:
+                    _PCM_CACHE[cache_key] = pcm_out
+                    if len(_PCM_CACHE) > _MAX_PCM_CACHE_ITEMS:
+                        _PCM_CACHE.popitem(last=False)
+                return pcm_out
         except Exception:
             pass
 
@@ -277,6 +373,7 @@ def synth_segment_pcm(text: str, voice: str, engine: str, speed: float = 1.0, em
             import wave
             with wave.open(tmp_f.name, "rb") as w:
                 return w.readframes(w.getnframes())
+
 
     elif engine == "kokoro":
         k = _get_kokoro()

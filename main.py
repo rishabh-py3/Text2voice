@@ -15,8 +15,8 @@ from pydantic import BaseModel, Field
 
 import db
 import service
-from audio_utils import EFFECTS, AudioError
-from engines import VOICES, VOICES_DIR, pick_engine
+from audio_utils import EFFECTS, AudioError, get_ffmpeg_bin
+from engines import VOICES, VOICES_DIR, clear_runtime_caches, pick_engine
 
 BASE = Path(__file__).parent
 STATIC = BASE / "static"
@@ -36,12 +36,23 @@ RUNTIME_SETTINGS = {
     "default_speed": 1.0,
     "default_format": "mp3",
     "pause_duration": 0.6,
+    "default_similarity": 0.85,
+    "output_quality": "high",
+    "auto_play": True,
+    "auto_download": False,
+    "show_tips": False,
 }
+
 
 
 @app.on_event("startup")
 def on_startup():
     db.init_db()
+    try:
+        # Clean up any leftover guest audio files from previous runs
+        db.cleanup_stale_guests(max_idle_seconds=60)
+    except Exception:
+        pass
     try:
         from engines import preload_voices
         preload_voices()
@@ -51,19 +62,22 @@ def on_startup():
 
 # ---------------- Session & Auth Helpers ----------------
 
+def _extract_token(request: Request) -> str | None:
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        return auth_header[7:].strip()
+    if request.headers.get("X-Session-Token"):
+        return request.headers.get("X-Session-Token")
+    if "token" in request.query_params:
+        return request.query_params["token"]
+    if request.cookies.get("session_token"):
+        return request.cookies.get("session_token")
+    return None
+
+
 def get_current_session(request: Request) -> dict:
     """Retrieve existing session from Header, Cookie, or Query Param, or create a guest session."""
-    auth_header = request.headers.get("Authorization", "")
-    token = None
-    if auth_header.startswith("Bearer "):
-        token = auth_header[7:].strip()
-    elif request.headers.get("X-Session-Token"):
-        token = request.headers.get("X-Session-Token")
-    elif request.cookies.get("session_token"):
-        token = request.cookies.get("session_token")
-    elif "token" in request.query_params:
-        token = request.query_params["token"]
-
+    token = _extract_token(request)
     session = db.get_session(token) if token else None
     if not session:
         new_token, guest_info = db.create_guest_session()
@@ -89,6 +103,12 @@ def set_session_cookie(response: Response, token: str):
 
 
 def _record_output(result: service.AudioResult, title: str, kind: str, voice_or_effect: str, user_id: str) -> dict:
+    # Periodically purge inactive guest data to prevent disk overload
+    try:
+        db.cleanup_stale_guests(max_idle_seconds=900)
+    except Exception:
+        pass
+
     file_id = f"{int(datetime.datetime.now().timestamp() * 1000)}_{uuid.uuid4().hex[:6]}"
     filename = f"{kind}_{file_id}.{result.fmt}"
     file_path = OUTPUTS_DIR / filename
@@ -97,7 +117,7 @@ def _record_output(result: service.AudioResult, title: str, kind: str, voice_or_
     created_at = datetime.datetime.now().strftime("%b %d, %Y, %I:%M %p")
     timestamp = int(datetime.datetime.now().timestamp())
 
-    return db.save_file_record(
+    rec = db.save_file_record(
         file_id=file_id,
         user_id=user_id,
         filename=filename,
@@ -111,6 +131,14 @@ def _record_output(result: service.AudioResult, title: str, kind: str, voice_or_
         created_at=created_at,
         timestamp=timestamp,
     )
+
+    if user_id.startswith("guest_"):
+        try:
+            db.enforce_guest_file_limit(user_id, max_files=10)
+        except Exception:
+            pass
+
+    return rec
 
 
 class AuthRequest(BaseModel):
@@ -133,6 +161,12 @@ class SettingsUpdate(BaseModel):
     default_speed: float | None = None
     default_format: str | None = None
     pause_duration: float | None = None
+    default_similarity: float | None = None
+    output_quality: str | None = None
+    auto_play: bool | None = None
+    auto_download: bool | None = None
+    show_tips: bool | None = None
+
 
 
 def _audio_response(result: service.AudioResult, name: str, file_id: str | None = None, token: str | None = None) -> Response:
@@ -169,13 +203,43 @@ def health():
     return {
         "ok": True,
         "engine": engine,
-        "ffmpeg": bool(shutil.which("ffmpeg")),
+        "ffmpeg": bool(get_ffmpeg_bin()),
         "platform": platform.platform(),
         "python": platform.python_version(),
     }
 
 
-# ---------------- Authentication Endpoints ----------------
+# ---------------- Authentication & Guest Cleanup Endpoints ----------------
+
+@app.post("/api/guest/cleanup")
+async def guest_cleanup(request: Request):
+    """Automatically invoked via navigator.sendBeacon / keepalive fetch when a Guest user
+    closes the website tab/window. Immediately deletes all their generated audio files from
+    disk, removes their guest DB rows, and frees temporary RAM caches.
+    """
+    token = _extract_token(request)
+    if not token:
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                token = body.get("token")
+        except Exception:
+            pass
+
+    deleted_files = 0
+    if token:
+        sess = db.get_session(token)
+        if sess and (sess.get("is_guest") or str(sess.get("user_id", "")).startswith("guest_")):
+            deleted_files = db.cleanup_guest_session_and_files(sess["user_id"], token=token)
+
+    try:
+        db.cleanup_stale_guests(max_idle_seconds=900)
+        clear_runtime_caches(evict_models=False)
+    except Exception:
+        pass
+
+    return {"ok": True, "deleted_files": deleted_files}
+
 
 @app.get("/api/auth/me")
 def auth_me(request: Request, response: Response):
@@ -204,10 +268,12 @@ def auth_register(req: AuthRequest, request: Request, response: Response):
     current_session = get_current_session(request)
     if current_session.get("is_guest"):
         db.migrate_guest_files(current_session["user_id"], user["id"])
+        db.delete_session(current_session["token"])
     if req.guest_token:
         guest_sess = db.get_session(req.guest_token)
         if guest_sess and guest_sess.get("is_guest"):
             db.migrate_guest_files(guest_sess["user_id"], user["id"])
+            db.delete_session(req.guest_token)
 
     token = db.create_session(user["id"], user["username"], is_guest=False)
     set_session_cookie(response, token)
@@ -232,10 +298,12 @@ def auth_login(req: AuthRequest, request: Request, response: Response):
     current_session = get_current_session(request)
     if current_session.get("is_guest"):
         db.migrate_guest_files(current_session["user_id"], user["id"])
+        db.delete_session(current_session["token"])
     if req.guest_token:
         guest_sess = db.get_session(req.guest_token)
         if guest_sess and guest_sess.get("is_guest"):
             db.migrate_guest_files(guest_sess["user_id"], user["id"])
+            db.delete_session(req.guest_token)
 
     token = db.create_session(user["id"], user["username"], is_guest=False)
     set_session_cookie(response, token)
@@ -252,14 +320,13 @@ def auth_login(req: AuthRequest, request: Request, response: Response):
 
 @app.post("/api/auth/logout")
 def auth_logout(request: Request, response: Response):
-    auth_header = request.headers.get("Authorization", "")
-    token = None
-    if auth_header.startswith("Bearer "):
-        token = auth_header[7:].strip()
-    elif request.cookies.get("session_token"):
-        token = request.cookies.get("session_token")
+    token = _extract_token(request)
     if token:
-        db.delete_session(token)
+        sess = db.get_session(token)
+        if sess and sess.get("is_guest"):
+            db.cleanup_guest_session_and_files(sess["user_id"], token=token)
+        else:
+            db.delete_session(token)
 
     new_token, guest_info = db.create_guest_session()
     set_session_cookie(response, new_token)
@@ -268,6 +335,7 @@ def auth_logout(request: Request, response: Response):
         "token": new_token,
         "user": guest_info,
     }
+
 
 
 # ---------------- Synthesis Endpoints ----------------
@@ -282,6 +350,7 @@ def voices():
             "gender": v["gender"],
             "accent": v.get("accent", "American (US)"),
             "tone": v.get("tone", "Natural"),
+            "tags": v.get("tags", [v.get("tone", "Natural")]),
             "description": v.get("description", "Natural sounding speech synthesis voice."),
             "model": v["piper"],
             "sample_url": f"/api/voices/{name}/sample",
@@ -292,6 +361,7 @@ def voices():
 @app.get("/api/effects")
 def effects():
     descriptions = {
+        "none": "Direct AI voice persona formant & timbre match",
         "robot": "Metallic robotic resonator with modulated harmonics",
         "digital": "8-bit glitch bitcrusher & lo-fi synthetic crunch",
         "smooth_ai": "Studio multi-voice chorus with warm dynamic compression",
@@ -351,6 +421,10 @@ async def voice_convert(
     file: UploadFile = File(...),
     effect: str = Form("robot"),
     format: str = Form("mp3"),
+    target_voice: str = Form("Aria"),
+    similarity: float = Form(0.85),
+    stability: float = Form(0.70),
+    clarity: float = Form(0.80),
 ):
     session = get_current_session(request)
     if session.get("is_new"):
@@ -365,14 +439,24 @@ async def voice_convert(
     if not data:
         raise HTTPException(400, "Empty file.")
     try:
-        result = service.convert_voice(data, file.filename or "recording.webm", effect, format)
+        result = service.convert_voice(
+            data,
+            file.filename or "recording.webm",
+            effect=effect,
+            fmt=format,
+            target_voice=target_voice,
+            similarity=similarity,
+            stability=stability,
+            clarity=clarity,
+        )
     except ValueError as e:
         raise HTTPException(400, str(e))
     except AudioError as e:
         raise HTTPException(422, f"Could not process that audio: {e}")
 
-    title = file.filename or f"recording-{datetime.datetime.now().strftime('%H%M%S')}"
-    rec = _record_output(result, title, "vts", effect, user_id=session["user_id"])
+    title = file.filename or f"Voice conversion ({target_voice})"
+    label = target_voice if effect == "none" else f"{target_voice} ({effect.replace('_', ' ').title()})"
+    rec = _record_output(result, title, "vts", label, user_id=session["user_id"])
     return _audio_response(result, "converted-voice", file_id=rec["id"], token=session["token"])
 
 
@@ -462,7 +546,11 @@ def get_settings(request: Request):
         active_engine = f"error: {e}"
 
     voices_info = []
+    seen_models = set()
     for k, v in VOICES.items():
+        if v["piper"] in seen_models and k not in ("Aria", "Ethan", "Nova", "Adam"):
+            continue
+        seen_models.add(v["piper"])
         onnx_file = VOICES_DIR / f"{v['piper']}.onnx"
         voices_info.append({
             "name": k,
@@ -482,7 +570,12 @@ def get_settings(request: Request):
         "default_speed": RUNTIME_SETTINGS["default_speed"],
         "default_format": RUNTIME_SETTINGS["default_format"],
         "pause_duration": RUNTIME_SETTINGS["pause_duration"],
-        "ffmpeg": bool(shutil.which("ffmpeg")),
+        "default_similarity": RUNTIME_SETTINGS["default_similarity"],
+        "output_quality": RUNTIME_SETTINGS["output_quality"],
+        "auto_play": RUNTIME_SETTINGS["auto_play"],
+        "auto_download": RUNTIME_SETTINGS["auto_download"],
+        "show_tips": RUNTIME_SETTINGS["show_tips"],
+        "ffmpeg": bool(get_ffmpeg_bin()),
         "installed_voices": voices_info,
         "files_count": len(records),
         "files_size_bytes": total_bytes,
@@ -503,6 +596,8 @@ def update_settings(update: SettingsUpdate):
         else:
             os.environ["TTS_ENGINE"] = update.engine
         _sample_cache.clear()
+        clear_runtime_caches(evict_models=True)
+
     if update.default_voice is not None:
         if update.default_voice in VOICES:
             RUNTIME_SETTINGS["default_voice"] = update.default_voice
@@ -516,8 +611,20 @@ def update_settings(update: SettingsUpdate):
         if 0.0 <= update.pause_duration <= 5.0:
             RUNTIME_SETTINGS["pause_duration"] = update.pause_duration
             service.PAUSE_SECONDS = update.pause_duration
+    if update.default_similarity is not None:
+        if 0.0 <= update.default_similarity <= 1.0:
+            RUNTIME_SETTINGS["default_similarity"] = update.default_similarity
+    if update.output_quality is not None:
+        RUNTIME_SETTINGS["output_quality"] = update.output_quality
+    if update.auto_play is not None:
+        RUNTIME_SETTINGS["auto_play"] = update.auto_play
+    if update.auto_download is not None:
+        RUNTIME_SETTINGS["auto_download"] = update.auto_download
+    if update.show_tips is not None:
+        RUNTIME_SETTINGS["show_tips"] = update.show_tips
 
     return {"ok": True, "settings": RUNTIME_SETTINGS}
+
 
 
 if __name__ == "__main__":

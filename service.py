@@ -282,7 +282,16 @@ def synthesize(text: str, voice: str, speed: float = 1.0, fmt: str = "mp3", paus
     return AudioResult(audio_data, fmt, duration)
 
 
-def convert_voice(upload: bytes, filename: str, effect: str, fmt: str = "mp3") -> AudioResult:
+def convert_voice(
+    upload: bytes,
+    filename: str,
+    effect: str = "robot",
+    fmt: str = "mp3",
+    target_voice: str | None = None,
+    similarity: float = 0.85,
+    stability: float = 0.70,
+    clarity: float = 0.80,
+) -> AudioResult:
     if effect not in au.EFFECTS:
         raise ValueError(f"Unknown effect '{effect}'.")
     if fmt not in ("mp3", "wav"):
@@ -290,10 +299,17 @@ def convert_voice(upload: bytes, filename: str, effect: str, fmt: str = "mp3") -
 
     suffix = Path(filename).suffix.lower() or ".webm"
     with tempfile.TemporaryDirectory() as tmp:
-        tmp = Path(tmp)
-        src = tmp / f"in{suffix}"
+        src = Path(tmp) / f"in{suffix}"
         src.write_bytes(upload)
-        processed, final = tmp / "fx.wav", tmp / f"out.{fmt}"
-        au.apply_effect(src, processed, effect)
-        au.encode(processed, final, fmt)
-        return AudioResult(final.read_bytes(), fmt, au.wav_duration(processed))
+        audio_bytes, duration = au.convert_voice_single_pass(
+            src,
+            effect,
+            fmt,
+            target_voice=target_voice,
+            similarity=similarity,
+            stability=stability,
+            clarity=clarity,
+        )
+        return AudioResult(audio_bytes, fmt, duration)
+
+
