@@ -68,6 +68,96 @@
     }, 3200);
   }
 
+  // Dedicated Custom Confirmation Modal (Neo-Brutalist)
+  const confirmModal = $("#confirmModal");
+  const confirmTitleEl = $("#confirmTitle");
+  const confirmMsgEl = $("#confirmMessage");
+  const confirmBadgeEl = $("#confirmBadge");
+  const confirmBadgeTextEl = $("#confirmBadgeText");
+  const confirmIconEl = $("#confirmIcon");
+  const confirmIconWrapEl = $("#confirmIconWrap");
+  const confirmOkBtn = $("#confirmOkBtn");
+  const confirmCancelBtn = $("#confirmCancelBtn");
+  const confirmCloseBtn = $("#confirmCloseBtn");
+
+  function openConfirmModal({
+    title = "CONFIRM ACTION",
+    message = "Are you sure you want to proceed?",
+    badgeText = "ACTION REQUIRED",
+    icon = "⚠️",
+    isDanger = true,
+    okText = "CONFIRM",
+    cancelText = "CANCEL",
+  } = {}) {
+    return new Promise((resolve) => {
+      if (!confirmModal) {
+        resolve(window.confirm(message));
+        return;
+      }
+
+      if (confirmTitleEl) confirmTitleEl.textContent = title;
+      if (confirmMsgEl) confirmMsgEl.textContent = message;
+      if (confirmBadgeTextEl) confirmBadgeTextEl.textContent = badgeText;
+      if (confirmIconEl) confirmIconEl.textContent = icon;
+      if (confirmOkBtn) confirmOkBtn.textContent = okText;
+      if (confirmCancelBtn) confirmCancelBtn.textContent = cancelText;
+
+      if (confirmBadgeEl) {
+        confirmBadgeEl.classList.toggle("danger", isDanger);
+      }
+      if (confirmIconWrapEl) {
+        confirmIconWrapEl.classList.toggle("danger", isDanger);
+      }
+      if (confirmOkBtn) {
+        confirmOkBtn.classList.toggle("danger", isDanger);
+      }
+
+      confirmModal.classList.add("active");
+
+      function finish(result) {
+        confirmModal.classList.remove("active");
+        confirmOkBtn?.removeEventListener("click", onOk);
+        confirmCancelBtn?.removeEventListener("click", onCancel);
+        confirmCloseBtn?.removeEventListener("click", onCancel);
+        confirmModal.removeEventListener("click", onBackdrop);
+        window.removeEventListener("keydown", onKeyDown);
+        resolve(result);
+      }
+
+      function onOk(e) {
+        e?.preventDefault?.();
+        finish(true);
+      }
+      function onCancel(e) {
+        e?.preventDefault?.();
+        finish(false);
+      }
+      function onBackdrop(e) {
+        if (e.target === confirmModal) finish(false);
+      }
+      function onKeyDown(e) {
+        if (!confirmModal.classList.contains("active")) return;
+        if (e.key === "Escape") {
+          e.preventDefault();
+          finish(false);
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          finish(true);
+        }
+      }
+
+      confirmOkBtn?.addEventListener("click", onOk);
+      confirmCancelBtn?.addEventListener("click", onCancel);
+      confirmCloseBtn?.addEventListener("click", onCancel);
+      confirmModal.addEventListener("click", onBackdrop);
+      window.addEventListener("keydown", onKeyDown);
+
+      setTimeout(() => {
+        confirmOkBtn?.focus();
+      }, 50);
+    });
+  }
+
   const fmtTime = (s) => {
     if (!isFinite(s) || isNaN(s) || s < 0) return "0:00";
     const m = Math.floor(s / 60);
@@ -344,7 +434,16 @@
 
   // Handle Logout
   async function handleLogout() {
-    if (!confirm("Are you sure you want to log out?")) return;
+    const confirmed = await openConfirmModal({
+      title: "SIGN OUT?",
+      message: "Are you sure you want to log out? You will be switched to a temporary guest session.",
+      badgeText: "SESSION // SIGN OUT",
+      icon: "🚪",
+      isDanger: false,
+      okText: "LOG OUT",
+      cancelText: "CANCEL",
+    });
+    if (!confirmed) return;
     try {
       const res = await fetch("/api/auth/logout", {
         method: "POST",
@@ -1511,7 +1610,16 @@
       // Delete handler
       const delBtn = item.querySelector(".file-delete-btn");
       delBtn.addEventListener("click", async () => {
-        if (!confirm("Are you sure you want to delete this audio file?")) return;
+        const confirmed = await openConfirmModal({
+          title: "DELETE AUDIO FILE?",
+          message: `Are you sure you want to delete "${file.filename || 'this audio file'}"? This action cannot be undone.`,
+          badgeText: "CONFIRM DELETION",
+          icon: "🗑️",
+          isDanger: true,
+          okText: "DELETE FILE",
+          cancelText: "CANCEL",
+        });
+        if (!confirmed) return;
         try {
           const res = await fetch(`/api/files/${file.id}`, {
             method: "DELETE",
@@ -1543,7 +1651,16 @@
 
   clearAllFilesBtn.addEventListener("click", async () => {
     if (!allFiles.length) return showToast("No files to clear", true);
-    if (!confirm("Are you sure you want to delete ALL your saved audio files? This cannot be undone.")) return;
+    const confirmed = await openConfirmModal({
+      title: "DELETE ALL FILES?",
+      message: "Are you sure you want to delete ALL your saved audio files? This cannot be undone and will permanently remove them from your archive.",
+      badgeText: "DESTRUCTIVE // IRREVERSIBLE",
+      icon: "🗑️",
+      isDanger: true,
+      okText: "DELETE ALL",
+      cancelText: "KEEP FILES",
+    });
+    if (!confirmed) return;
     try {
       const res = await fetch("/api/files/clear", {
         method: "POST",
@@ -1752,7 +1869,16 @@
   }
 
   settingsClearStorageBtn.addEventListener("click", async () => {
-    if (!confirm("Clear all output audio files from disk?")) return;
+    const confirmed = await openConfirmModal({
+      title: "PURGE AUDIO STORAGE?",
+      message: "Clear all generated audio files from server disk storage? Any saved audio in temporary guest directories will be purged immediately.",
+      badgeText: "STORAGE PURGE",
+      icon: "🧹",
+      isDanger: true,
+      okText: "PURGE STORAGE",
+      cancelText: "CANCEL",
+    });
+    if (!confirmed) return;
     try {
       await fetch("/api/files/clear", { method: "POST", headers: getAuthHeaders() });
       loadSettings();
