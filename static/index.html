@@ -2428,6 +2428,29 @@
       word-break: break-word;
     }
 
+    .confirm-input-wrap {
+      width: 100%;
+    }
+
+    .confirm-input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1.5px solid var(--border);
+      background: var(--paper);
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      outline: none;
+      box-shadow: 2px 2px 0px #121212;
+      transition: box-shadow 0.15s ease, border-color 0.15s ease;
+      box-sizing: border-box;
+    }
+
+    .confirm-input:focus {
+      border-color: #121212;
+      box-shadow: 3px 3px 0px var(--lime);
+    }
+
     .confirm-actions {
       display: flex;
       gap: 10px;
@@ -3344,7 +3367,8 @@
 
 <!-- Authentication Modal -->
 <div class="modal-overlay" id="authModal">
-  <div class="modal-card">
+  <div class="modal-card" style="position: relative;">
+    <div class="tape-lime" aria-hidden="true" style="top: -11px; right: 24px;"></div>
     <div class="modal-header">
       <div class="modal-tabs">
         <button class="modal-tab active" id="authTabLogin" type="button">SIGN IN</button>
@@ -3385,7 +3409,7 @@
   </div>
 </div>
 
-<!-- Dedicated Neo-Brutalist Confirmation Modal -->
+<!-- Dedicated Neo-Brutalist Confirmation / Alert / Prompt Modal -->
 <div class="modal-overlay" id="confirmModal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
   <div class="modal-card confirm-modal-card">
     <div class="tape-black" aria-hidden="true" style="top: -10px; right: -8px;"></div>
@@ -3405,6 +3429,9 @@
       <div class="confirm-content">
         <h3 class="confirm-title" id="confirmTitle">CONFIRM ACTION</h3>
         <p class="confirm-message" id="confirmMessage">Are you sure you want to proceed?</p>
+        <div class="confirm-input-wrap" id="confirmInputWrap" style="display: none; margin-top: 12px;">
+          <input type="text" id="confirmInput" class="confirm-input" placeholder="Type here…" autocomplete="off" />
+        </div>
       </div>
     </div>
 
@@ -3421,7 +3448,7 @@
   <span id="toastMessage">Action completed</span>
 </div>
 
-<script src="/static/app.js?v=4.1"></script>
+<script src="/static/app.js?v=4.2"></script>
 
 </body>
 </html>

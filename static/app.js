@@ -68,7 +68,7 @@
     }, 3200);
   }
 
-  // Dedicated Custom Confirmation Modal (Neo-Brutalist)
+  // Dedicated Custom Dialogs (Neo-Brutalist: Confirm, Alert, Prompt)
   const confirmModal = $("#confirmModal");
   const confirmTitleEl = $("#confirmTitle");
   const confirmMsgEl = $("#confirmMessage");
@@ -76,6 +76,8 @@
   const confirmBadgeTextEl = $("#confirmBadgeText");
   const confirmIconEl = $("#confirmIcon");
   const confirmIconWrapEl = $("#confirmIconWrap");
+  const confirmInputWrapEl = $("#confirmInputWrap");
+  const confirmInputEl = $("#confirmInput");
   const confirmOkBtn = $("#confirmOkBtn");
   const confirmCancelBtn = $("#confirmCancelBtn");
   const confirmCloseBtn = $("#confirmCloseBtn");
@@ -91,7 +93,7 @@
   } = {}) {
     return new Promise((resolve) => {
       if (!confirmModal) {
-        resolve(window.confirm(message));
+        resolve(true);
         return;
       }
 
@@ -100,17 +102,15 @@
       if (confirmBadgeTextEl) confirmBadgeTextEl.textContent = badgeText;
       if (confirmIconEl) confirmIconEl.textContent = icon;
       if (confirmOkBtn) confirmOkBtn.textContent = okText;
-      if (confirmCancelBtn) confirmCancelBtn.textContent = cancelText;
+      if (confirmCancelBtn) {
+        confirmCancelBtn.textContent = cancelText;
+        confirmCancelBtn.style.display = "";
+      }
+      if (confirmInputWrapEl) confirmInputWrapEl.style.display = "none";
 
-      if (confirmBadgeEl) {
-        confirmBadgeEl.classList.toggle("danger", isDanger);
-      }
-      if (confirmIconWrapEl) {
-        confirmIconWrapEl.classList.toggle("danger", isDanger);
-      }
-      if (confirmOkBtn) {
-        confirmOkBtn.classList.toggle("danger", isDanger);
-      }
+      if (confirmBadgeEl) confirmBadgeEl.classList.toggle("danger", isDanger);
+      if (confirmIconWrapEl) confirmIconWrapEl.classList.toggle("danger", isDanger);
+      if (confirmOkBtn) confirmOkBtn.classList.toggle("danger", isDanger);
 
       confirmModal.classList.add("active");
 
@@ -157,6 +157,176 @@
       }, 50);
     });
   }
+
+  function openAlertModal({
+    title = "SYSTEM NOTICE",
+    message = "",
+    badgeText = "NOTICE // SYSTEM",
+    icon = "ℹ️",
+    isDanger = false,
+    okText = "DISMISS",
+  } = {}) {
+    return new Promise((resolve) => {
+      if (!confirmModal) {
+        resolve();
+        return;
+      }
+
+      if (confirmTitleEl) confirmTitleEl.textContent = title;
+      if (confirmMsgEl) confirmMsgEl.textContent = message;
+      if (confirmBadgeTextEl) confirmBadgeTextEl.textContent = badgeText;
+      if (confirmIconEl) confirmIconEl.textContent = icon;
+      if (confirmOkBtn) confirmOkBtn.textContent = okText;
+      if (confirmCancelBtn) confirmCancelBtn.style.display = "none";
+      if (confirmInputWrapEl) confirmInputWrapEl.style.display = "none";
+
+      if (confirmBadgeEl) confirmBadgeEl.classList.toggle("danger", isDanger);
+      if (confirmIconWrapEl) confirmIconWrapEl.classList.toggle("danger", isDanger);
+      if (confirmOkBtn) confirmOkBtn.classList.toggle("danger", isDanger);
+
+      confirmModal.classList.add("active");
+
+      function finish() {
+        confirmModal.classList.remove("active");
+        confirmOkBtn?.removeEventListener("click", onDone);
+        confirmCloseBtn?.removeEventListener("click", onDone);
+        confirmModal.removeEventListener("click", onBackdrop);
+        window.removeEventListener("keydown", onKeyDown);
+        resolve();
+      }
+
+      function onDone(e) {
+        e?.preventDefault?.();
+        finish();
+      }
+      function onBackdrop(e) {
+        if (e.target === confirmModal) finish();
+      }
+      function onKeyDown(e) {
+        if (!confirmModal.classList.contains("active")) return;
+        if (e.key === "Escape" || e.key === "Enter") {
+          e.preventDefault();
+          finish();
+        }
+      }
+
+      confirmOkBtn?.addEventListener("click", onDone);
+      confirmCloseBtn?.addEventListener("click", onDone);
+      confirmModal.addEventListener("click", onBackdrop);
+      window.addEventListener("keydown", onKeyDown);
+
+      setTimeout(() => {
+        confirmOkBtn?.focus();
+      }, 50);
+    });
+  }
+
+  function openPromptModal({
+    title = "INPUT REQUIRED",
+    message = "",
+    defaultValue = "",
+    placeholder = "Type here…",
+    badgeText = "INPUT // PROMPT",
+    icon = "✏️",
+    okText = "SUBMIT",
+    cancelText = "CANCEL",
+  } = {}) {
+    return new Promise((resolve) => {
+      if (!confirmModal) {
+        resolve(defaultValue || null);
+        return;
+      }
+
+      if (confirmTitleEl) confirmTitleEl.textContent = title;
+      if (confirmMsgEl) confirmMsgEl.textContent = message;
+      if (confirmBadgeTextEl) confirmBadgeTextEl.textContent = badgeText;
+      if (confirmIconEl) confirmIconEl.textContent = icon;
+      if (confirmOkBtn) confirmOkBtn.textContent = okText;
+      if (confirmCancelBtn) {
+        confirmCancelBtn.textContent = cancelText;
+        confirmCancelBtn.style.display = "";
+      }
+
+      if (confirmInputWrapEl && confirmInputEl) {
+        confirmInputWrapEl.style.display = "block";
+        confirmInputEl.value = defaultValue || "";
+        confirmInputEl.placeholder = placeholder || "Type here…";
+      }
+
+      if (confirmBadgeEl) confirmBadgeEl.classList.remove("danger");
+      if (confirmIconWrapEl) confirmIconWrapEl.classList.remove("danger");
+      if (confirmOkBtn) confirmOkBtn.classList.remove("danger");
+
+      confirmModal.classList.add("active");
+
+      function finish(result) {
+        confirmModal.classList.remove("active");
+        confirmOkBtn?.removeEventListener("click", onOk);
+        confirmCancelBtn?.removeEventListener("click", onCancel);
+        confirmCloseBtn?.removeEventListener("click", onCancel);
+        confirmModal.removeEventListener("click", onBackdrop);
+        window.removeEventListener("keydown", onKeyDown);
+        resolve(result);
+      }
+
+      function onOk(e) {
+        e?.preventDefault?.();
+        finish(confirmInputEl ? confirmInputEl.value : "");
+      }
+      function onCancel(e) {
+        e?.preventDefault?.();
+        finish(null);
+      }
+      function onBackdrop(e) {
+        if (e.target === confirmModal) finish(null);
+      }
+      function onKeyDown(e) {
+        if (!confirmModal.classList.contains("active")) return;
+        if (e.key === "Escape") {
+          e.preventDefault();
+          finish(null);
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          finish(confirmInputEl ? confirmInputEl.value : "");
+        }
+      }
+
+      confirmOkBtn?.addEventListener("click", onOk);
+      confirmCancelBtn?.addEventListener("click", onCancel);
+      confirmCloseBtn?.addEventListener("click", onCancel);
+      confirmModal.addEventListener("click", onBackdrop);
+      window.addEventListener("keydown", onKeyDown);
+
+      setTimeout(() => {
+        confirmInputEl?.focus();
+        confirmInputEl?.select();
+      }, 50);
+    });
+  }
+
+  // Override window.alert and window.prompt so NO native grey browser dialog can ever show
+  window.alert = (msg) => {
+    return openAlertModal({
+      title: "ALERT",
+      message: String(msg ?? ""),
+      badgeText: "NOTICE // ALERT",
+      icon: "⚠️",
+      isDanger: false,
+      okText: "DISMISS",
+    });
+  };
+
+  window.prompt = (msg, defVal = "") => {
+    return openPromptModal({
+      title: "INPUT",
+      message: String(msg ?? ""),
+      defaultValue: defVal,
+      badgeText: "INPUT // PROMPT",
+      icon: "✏️",
+      okText: "SUBMIT",
+      cancelText: "CANCEL",
+    });
+  };
 
   const fmtTime = (s) => {
     if (!isFinite(s) || isNaN(s) || s < 0) return "0:00";
@@ -564,7 +734,20 @@
   });
 
   // Clear text
-  clearBtn.addEventListener("click", () => {
+  clearBtn.addEventListener("click", async () => {
+    if (!textInput.value.trim()) return;
+    if (textInput.value.trim().length > 25) {
+      const confirmed = await openConfirmModal({
+        title: "CLEAR SCRIPT?",
+        message: "Are you sure you want to clear your text script? This will remove all unsaved text currently in the studio.",
+        badgeText: "CLEAR EDITOR",
+        icon: "✏️",
+        isDanger: true,
+        okText: "CLEAR SCRIPT",
+        cancelText: "KEEP TEXT",
+      });
+      if (!confirmed) return;
+    }
     textInput.value = "";
     counter.textContent = "0 / 5000";
     textInput.focus();
@@ -1219,7 +1402,19 @@
     vtsInputAudio.addEventListener("pause", () => (vtsPreviewInputPlayBtn.textContent = "▶"));
   }
 
-  function clearVtsInput() {
+  async function clearVtsInput() {
+    if (vtsPendingFile) {
+      const confirmed = await openConfirmModal({
+        title: "REMOVE AUDIO?",
+        message: "Are you sure you want to discard your recorded audio or uploaded file?",
+        badgeText: "DISCARD AUDIO",
+        icon: "🎙️",
+        isDanger: true,
+        okText: "DISCARD AUDIO",
+        cancelText: "KEEP AUDIO",
+      });
+      if (!confirmed) return;
+    }
     vtsPendingFile = null;
     vtsInputBadge.textContent = "NO AUDIO LOADED";
     vtsUploadText.textContent = "or drag & drop audio file";
