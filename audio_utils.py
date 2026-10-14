@@ -306,24 +306,45 @@ def build_vts_filter_chain(
     stability: float = 0.70,
     clarity: float = 0.80,
 ) -> str:
-    """Build dynamic studio filter chain combining target AI voice, effect, and fine-tuning sliders."""
-    eff_key = (effect or "robot").lower()
+    """Build dynamic studio filter chain combining input speech conditioning,
+    target AI voice formant modeling, effect processing, and fine-tuning sliders.
+    Produces high-fidelity 44.1kHz broadcast vocal audio with zero clipping.
+    """
+    eff_key = (effect or "none").lower()
     if eff_key not in EFFECTS:
-        eff_key = "robot"
+        eff_key = "none"
 
     chains = []
-    if eff_key == "none" and target_voice and target_voice in VOICE_PERSONA_FILTERS:
+
+    # 1. Input Microphone Conditioning & Intelligent Speech Leveling
+    # Cuts rumble/handling noise below 75Hz, applies gentle spectral noise cleaning,
+    # and levels conversational volume so quiet mic recordings are clear and audible.
+    chains.append("aresample=44100,highpass=f=75,afftdn=nf=-24,dynaudnorm=f=75:g=15:p=0.92:m=8.0")
+
+    # 2. Target Voice Persona Formant / Pitch Shaping
+    if target_voice and target_voice in VOICE_PERSONA_FILTERS:
         chains.append(VOICE_PERSONA_FILTERS[target_voice])
-    else:
+
+    # 3. Studio Character Effect (if not "none")
+    if eff_key != "none":
         chains.append(EFFECTS[eff_key])
 
-    # Apply Clarity (high-frequency presence shaping) & Stability (dynamic leveling)
-    clarity_gain = round((float(clarity) - 0.5) * 5.0, 1)  # -2.5dB to +2.5dB
-    if abs(clarity_gain) >= 0.3:
-        chains.append(f"treble=g={clarity_gain}:f=5500")
+    # 4. Speech Articulation & Treble Air (Clarity Slider: 0.0 to 1.0)
+    # 3.6kHz targets consonant intelligibility ("s", "t", "ch" sounds); 8.5kHz adds studio sheen.
+    cl_factor = max(0.0, min(1.0, float(clarity)))
+    clarity_gain = round((cl_factor - 0.5) * 6.0, 1)  # -3.0dB to +3.0dB
+    air_gain = round((cl_factor - 0.5) * 4.0, 1)      # -2.0dB to +2.0dB
+    if abs(clarity_gain) >= 0.2:
+        chains.append(f"equalizer=f=3600:t=q:w=1.3:g={clarity_gain}")
+    if abs(air_gain) >= 0.2:
+        chains.append(f"treble=g={air_gain}:f=8500")
 
-    comp_ratio = round(2.0 + float(stability) * 3.0, 1)
-    chains.append(f"acompressor=threshold=-19dB:ratio={comp_ratio}:attack=6:release=80,alimiter=limit=0.94")
+    # 5. Dynamic Vocal Smoothing & Peak Protection (Stability Slider: 0.0 to 1.0)
+    st_factor = max(0.0, min(1.0, float(stability)))
+    comp_ratio = round(2.0 + st_factor * 3.5, 1)
+    chains.append(f"acompressor=threshold=-18dB:ratio={comp_ratio}:attack=6:release=85:makeup=2.0")
+    chains.append("alimiter=limit=0.95:attack=4:release=50")
+
     return ",".join(chains)
 
 

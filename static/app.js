@@ -729,18 +729,88 @@
     }
   });
 
+  // Helper: Detect best audio MIME type supported by browser
+  function getBestSupportedMime() {
+    const types = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/ogg;codecs=opus",
+      "audio/mp4",
+      "audio/wav"
+    ];
+    for (const t of types) {
+      if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) {
+        return t;
+      }
+    }
+    return "";
+  }
+
+  // Real-time Soundwave Visualizer: modulates the lime wave bars with speech volume
+  function attachLiveAudioVisualizer(stream, badgeEl) {
+    if (!badgeEl) return null;
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return null;
+      const ctx = new AudioCtx();
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 32;
+      analyser.smoothingTimeConstant = 0.55;
+      source.connect(analyser);
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      let animId = null;
+      const bars = badgeEl.querySelectorAll(".wbar");
+
+      function renderFrame() {
+        analyser.getByteFrequencyData(dataArray);
+        let avg = 0;
+        for (let i = 0; i < dataArray.length; i++) avg += dataArray[i];
+        avg = avg / dataArray.length; // 0..255
+
+        const voiceFactor = Math.min(2.0, Math.max(0.35, (avg / 32.0)));
+        bars.forEach((bar, idx) => {
+          const bin = (dataArray[idx % dataArray.length] || avg) / 255.0;
+          const scale = Math.max(0.3, Math.min(1.95, 0.35 + bin * 1.4 + (voiceFactor * 0.25)));
+          bar.style.transform = `scaleY(${scale.toFixed(2)})`;
+        });
+
+        animId = requestAnimationFrame(renderFrame);
+      }
+      renderFrame();
+
+      return {
+        stop: () => {
+          if (animId) cancelAnimationFrame(animId);
+          bars.forEach((b) => (b.style.transform = ""));
+          try { ctx.close(); } catch (e) {}
+        }
+      };
+    } catch (err) {
+      console.warn("Live visualizer fallback:", err);
+      return null;
+    }
+  }
+
   // Quick Voice Converter in TTS Right Column
   const quickDropZone = $("#quickDropZone");
+  const quickMicBadge = $("#quickMicBadge");
   const quickFileInput = $("#quickFileInput");
   const quickRecLabel = $("#quickRecLabel");
+  const quickRecTimer = $("#quickRecTimer");
   const quickRecordBtn = $("#quickRecordBtn");
   const quickBrowseBtn = $("#quickBrowseBtn");
   const quickEffectSelect = $("#quickEffectSelect");
   const quickConvertBtn = $("#quickConvertBtn");
   const quickDownloadRecBtn = $("#quickDownloadRecBtn");
+
   let quickPendingFile = null;
   let quickMediaRecorder = null;
   let quickRecChunks = [];
+  let quickVisualizer = null;
+  let quickRecTimerInterval = null;
+  let quickRecStartTime = 0;
 
   function setQuickAudioFile(file, label) {
     quickPendingFile = file;
@@ -749,17 +819,116 @@
     if (quickDownloadRecBtn) quickDownloadRecBtn.style.display = "block";
   }
 
+  async function toggleQuickRecording() {
+    if (quickMediaRecorder && quickMediaRecorder.state === "recording") {
+      quickMediaRecorder.stop();
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      showToast("Microphone access is not supported in this browser", true);
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          sampleRate: 44100,
+          echoCancellation: true,
+          noiseSuppression: false, // Keep full human vocal harmonics & formants
+          autoGainControl: true,
+        }
+      });
+
+      quickRecChunks = [];
+      const mime = getBestSupportedMime();
+      const options = mime ? { mimeType: mime, audioBitsPerSecond: 192000 } : {};
+
+      try {
+        quickMediaRecorder = new MediaRecorder(stream, options);
+      } catch (e) {
+        quickMediaRecorder = new MediaRecorder(stream);
+      }
+
+      quickMediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) quickRecChunks.push(e.data);
+      };
+
+      quickMediaRecorder.onstop = () => {
+        if (quickVisualizer) {
+          quickVisualizer.stop();
+          quickVisualizer = null;
+        }
+        clearInterval(quickRecTimerInterval);
+        stream.getTracks().forEach((t) => t.stop());
+
+        if (quickMicBadge) quickMicBadge.classList.remove("is-recording");
+        if (quickDropZone) quickDropZone.classList.remove("is-recording");
+        if (quickRecTimer) quickRecTimer.style.display = "none";
+        quickRecordBtn.textContent = "🎙 LIVE RECORD";
+        quickRecordBtn.style.background = "";
+        quickRecordBtn.style.color = "";
+
+        const recMime = quickMediaRecorder.mimeType || mime || "audio/webm";
+        const ext = recMime.includes("mp4") ? "m4a" : recMime.includes("ogg") ? "ogg" : recMime.includes("wav") ? "wav" : "webm";
+        const blob = new Blob(quickRecChunks, { type: recMime });
+        const recFile = new File([blob], `mic_recording_${Date.now()}.${ext}`, { type: recMime });
+        setQuickAudioFile(recFile, "MIC RECORDING");
+        showToast("Voice captured! Ready to convert.");
+      };
+
+      quickMediaRecorder.start(250);
+      quickRecStartTime = Date.now();
+
+      if (quickMicBadge) quickMicBadge.classList.add("is-recording");
+      if (quickDropZone) quickDropZone.classList.add("is-recording");
+      if (quickRecTimer) {
+        quickRecTimer.style.display = "block";
+        quickRecTimer.textContent = "● 00:00";
+      }
+      quickRecordBtn.textContent = "⏹ STOP REC";
+      quickRecordBtn.style.background = "var(--red)";
+      quickRecordBtn.style.color = "#fff";
+      quickRecLabel.textContent = "RECORDING… CLICK TO STOP";
+
+      quickVisualizer = attachLiveAudioVisualizer(stream, quickMicBadge);
+
+      quickRecTimerInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - quickRecStartTime) / 1000);
+        if (quickRecTimer) quickRecTimer.textContent = `● ${fmtTime(elapsed)}`;
+        quickRecLabel.textContent = `RECORDING (${fmtTime(elapsed)}) — CLICK TO STOP`;
+      }, 500);
+
+    } catch (err) {
+      showToast("Microphone permission was denied. Check browser settings.", true);
+    }
+  }
+
+  if (quickMicBadge) {
+    quickMicBadge.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleQuickRecording();
+    });
+  }
+
+  if (quickRecordBtn) {
+    quickRecordBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleQuickRecording();
+    });
+  }
+
   if (quickBrowseBtn) {
-    quickBrowseBtn.addEventListener("click", () => quickFileInput.click());
+    quickBrowseBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      quickFileInput.click();
+    });
   }
 
   quickDropZone.addEventListener("click", (e) => {
-    if (e.target.closest("button") || e.target.closest("select")) return;
-    if (quickRecordBtn) {
-      quickRecordBtn.click();
-    } else {
-      quickFileInput.click();
-    }
+    if (e.target.closest("button") || e.target.closest("select") || e.target.closest("input")) return;
+    toggleQuickRecording();
   });
 
   quickFileInput.addEventListener("change", () => {
@@ -793,52 +962,6 @@
     }
   });
 
-  if (quickRecordBtn) {
-    quickRecordBtn.addEventListener("click", async () => {
-      if (quickMediaRecorder && quickMediaRecorder.state === "recording") {
-        quickMediaRecorder.stop();
-        return;
-      }
-
-      if (!navigator.mediaDevices?.getUserMedia) {
-        showToast("Microphone access is not supported in this browser", true);
-        return;
-      }
-
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        quickRecChunks = [];
-        quickMediaRecorder = new MediaRecorder(stream);
-
-        quickMediaRecorder.ondataavailable = (e) => {
-          if (e.data && e.data.size > 0) quickRecChunks.push(e.data);
-        };
-
-        quickMediaRecorder.onstop = () => {
-          stream.getTracks().forEach((t) => t.stop());
-          quickRecordBtn.textContent = "🎙 LIVE RECORD";
-          quickRecordBtn.style.background = "";
-          quickRecordBtn.style.color = "";
-
-          const mime = quickMediaRecorder.mimeType || "audio/webm";
-          const ext = mime.includes("mp4") ? "m4a" : mime.includes("ogg") ? "ogg" : "webm";
-          const blob = new Blob(quickRecChunks, { type: mime });
-          const recFile = new File([blob], `quick_recording.${ext}`, { type: mime });
-          setQuickAudioFile(recFile, "MIC RECORDING");
-          showToast("Microphone audio captured!");
-        };
-
-        quickMediaRecorder.start();
-        quickRecordBtn.textContent = "⏹ STOP REC";
-        quickRecordBtn.style.background = "var(--red)";
-        quickRecordBtn.style.color = "#fff";
-        quickRecLabel.textContent = "RECORDING IN PROGRESS…";
-      } catch (err) {
-        showToast("Microphone permission was denied. Check browser permissions.", true);
-      }
-    });
-  }
-
   if (quickDownloadRecBtn) {
     quickDownloadRecBtn.addEventListener("click", () => {
       if (!quickPendingFile) return showToast("No audio file available to download", true);
@@ -857,6 +980,9 @@
       form.append("effect", quickEffectSelect.value);
       form.append("format", formatSelect.value);
       form.append("target_voice", selectedVoice);
+      form.append("similarity", appPrefs.default_similarity ?? 0.85);
+      form.append("stability", 0.70);
+      form.append("clarity", 0.80);
 
       const res = await fetch("/api/voice-convert", {
         method: "POST",
@@ -871,7 +997,7 @@
       const dur = parseFloat(res.headers.get("X-Audio-Duration")) || 0;
       const blob = await res.blob();
       loadTtsAudio(blob, formatSelect.value, dur);
-      showToast("Voice converted!");
+      showToast("Voice converted with studio effects!");
     } catch (err) {
       showToast(err.message, true);
     } finally {
@@ -1019,12 +1145,83 @@
     });
   }
 
-  // File Upload & Drag-and-Drop
-  vtsDropZone.addEventListener("click", (e) => {
-    if (e.target.closest("#vtsRecordBtn")) return;
-    vtsFileInput.click();
-  });
+  const vtsMicBadge = $("#vtsMicBadge");
+  let vtsVisualizer = null;
 
+  async function toggleVtsRecording() {
+    if (vtsMediaRecorder && vtsMediaRecorder.state === "recording") {
+      vtsMediaRecorder.stop();
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      showToast("Microphone access is not supported in this browser", true);
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          sampleRate: 44100,
+          echoCancellation: true,
+          noiseSuppression: false, // Keep full human vocal harmonics & formants
+          autoGainControl: true,
+        }
+      });
+      vtsRecChunks = [];
+      const mime = getBestSupportedMime();
+      const options = mime ? { mimeType: mime, audioBitsPerSecond: 192000 } : {};
+
+      try {
+        vtsMediaRecorder = new MediaRecorder(stream, options);
+      } catch (e) {
+        vtsMediaRecorder = new MediaRecorder(stream);
+      }
+
+      vtsMediaRecorder.ondataavailable = (ev) => {
+        if (ev.data && ev.data.size > 0) vtsRecChunks.push(ev.data);
+      };
+
+      vtsMediaRecorder.onstop = () => {
+        if (vtsVisualizer) {
+          vtsVisualizer.stop();
+          vtsVisualizer = null;
+        }
+        clearInterval(vtsTimerInterval);
+        stream.getTracks().forEach((t) => t.stop());
+
+        if (vtsMicBadge) vtsMicBadge.classList.remove("is-recording");
+        if (vtsDropZone) vtsDropZone.classList.remove("is-recording");
+        vtsStatusLabel.textContent = "RECORDING SAVED ✓";
+
+        const recMime = vtsMediaRecorder.mimeType || mime || "audio/webm";
+        const ext = recMime.includes("mp4") ? "m4a" : recMime.includes("ogg") ? "ogg" : recMime.includes("wav") ? "wav" : "webm";
+        const blob = new Blob(vtsRecChunks, { type: recMime });
+        const recFile = new File([blob], `voice_recording_${Date.now()}.${ext}`, { type: recMime });
+        setVtsInputFile(recFile, "Microphone Recording");
+        showToast("Voice recorded with studio fidelity!");
+      };
+
+      vtsMediaRecorder.start(250);
+      vtsRecordStartTime = Date.now();
+      if (vtsMicBadge) vtsMicBadge.classList.add("is-recording");
+      if (vtsDropZone) vtsDropZone.classList.add("is-recording");
+      vtsStatusLabel.textContent = "RECORDING… CLICK TO STOP";
+
+      vtsVisualizer = attachLiveAudioVisualizer(stream, vtsMicBadge);
+
+      vtsTimerInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - vtsRecordStartTime) / 1000);
+        vtsTimer.textContent = fmtTime(elapsed);
+        vtsStatusLabel.textContent = `RECORDING (${fmtTime(elapsed)}) — CLICK TO STOP`;
+      }, 500);
+    } catch (err) {
+      showToast("Microphone permission was blocked. Check browser settings or upload a file.", true);
+    }
+  }
+
+  // File Upload & Drag-and-Drop
   vtsFileInput.addEventListener("change", () => {
     if (vtsFileInput.files.length) {
       const f = vtsFileInput.files[0];
@@ -1056,57 +1253,28 @@
     }
   });
 
-  // Microphone Recording
-  vtsRecordBtn.addEventListener("click", async (e) => {
-    e.stopPropagation();
-    if (vtsMediaRecorder && vtsMediaRecorder.state === "recording") {
-      vtsMediaRecorder.stop();
+  vtsDropZone.addEventListener("click", (e) => {
+    if (e.target.closest("button") || e.target.closest("input") || e.target.closest("select")) return;
+    if (e.target.closest("#vtsUploadText")) {
+      vtsFileInput.click();
       return;
     }
-
-    if (!navigator.mediaDevices?.getUserMedia) {
-      showToast("Microphone access is not supported in this browser", true);
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      vtsRecChunks = [];
-      vtsMediaRecorder = new MediaRecorder(stream);
-
-      vtsMediaRecorder.ondataavailable = (ev) => {
-        if (ev.data && ev.data.size > 0) vtsRecChunks.push(ev.data);
-      };
-
-      vtsMediaRecorder.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
-        clearInterval(vtsTimerInterval);
-        vtsRecordBtn.classList.remove("recording");
-        vtsRecordBtn.textContent = "🎙";
-        vtsStatusLabel.textContent = "RECORDING SAVED ✓";
-
-        const mime = vtsMediaRecorder.mimeType || "audio/webm";
-        const ext = mime.includes("mp4") ? "m4a" : mime.includes("ogg") ? "ogg" : "webm";
-        const blob = new Blob(vtsRecChunks, { type: mime });
-        const recFile = new File([blob], `my_voice_sample.${ext}`, { type: mime });
-        setVtsInputFile(recFile, "Microphone Recording");
-        showToast("Voice recorded successfully!");
-      };
-
-      vtsMediaRecorder.start();
-      vtsRecordStartTime = Date.now();
-      vtsRecordBtn.classList.add("recording");
-      vtsRecordBtn.textContent = "⏹";
-      vtsStatusLabel.textContent = "RECORDING… CLICK TO STOP";
-
-      vtsTimerInterval = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - vtsRecordStartTime) / 1000);
-        vtsTimer.textContent = fmtTime(elapsed);
-      }, 500);
-    } catch (err) {
-      showToast("Microphone permission was blocked. Check browser settings or upload a file.", true);
-    }
+    toggleVtsRecording();
   });
+
+  if (vtsMicBadge) {
+    vtsMicBadge.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleVtsRecording();
+    });
+  }
+
+  if (vtsRecordBtn) {
+    vtsRecordBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleVtsRecording();
+    });
+  }
 
   // VTS Output Player
   const vtsPlayer = new Audio();

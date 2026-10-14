@@ -1259,39 +1259,160 @@
       background: rgba(216, 241, 27, 0.12);
     }
 
-    /* Iconic Black Mic Square + Lime Circle Offset */
-    .mic-collage-wrap {
+    /* Custom Studio Microphone Record Badge with Animated Soundwaves */
+    .mic-record-badge {
       position: relative;
-      width: 64px;
-      height: 52px;
+      width: 88px;
+      height: 88px;
       margin: 0 auto 10px;
       display: flex;
       align-items: center;
       justify-content: center;
+      cursor: pointer;
+      border-radius: 8px;
+      background: #050505;
+      border: 2px solid #1a1a1a;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45), 3px 3px 0px rgba(0, 0, 0, 0.35);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      overflow: visible;
+      user-select: none;
     }
 
-    .mic-lime-disc {
+    .mic-record-badge:hover {
+      border-color: var(--lime);
+      transform: translateY(-2px) scale(1.03);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55), 0 0 16px rgba(216, 241, 27, 0.4);
+    }
+
+    .mic-badge-art {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 6px;
+      display: block;
+      transition: filter 0.2s ease;
+    }
+
+    /* Soundwave animation overlay matching the lime bars on the image */
+    .mic-wave-anim-overlay {
       position: absolute;
-      right: -4px;
-      top: 4px;
-      width: 42px;
-      height: 42px;
-      border-radius: 50%;
+      inset: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 7px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.22s ease;
+      z-index: 2;
+    }
+
+    .wave-wing {
+      display: flex;
+      align-items: center;
+      gap: 2.5px;
+      height: 56px;
+    }
+
+    .wbar {
+      display: block;
+      width: 3.5px;
       background: var(--lime);
+      border-radius: 3px;
+      box-shadow: 0 0 8px rgba(216, 241, 27, 0.85);
+      transform-origin: center;
+      transform: scaleY(0.3);
+      transition: transform 0.08s ease;
+    }
+
+    .wb-1 { height: 16px; }
+    .wb-2 { height: 26px; }
+    .wb-3 { height: 38px; }
+    .wb-4 { height: 48px; }
+    .wb-5 { height: 32px; }
+    .wb-6 { height: 20px; }
+
+    /* Concentric acoustic ripple rings when recording */
+    .mic-rec-ripple {
+      position: absolute;
+      inset: -6px;
+      border: 2px solid var(--lime);
+      border-radius: 12px;
+      opacity: 0;
+      pointer-events: none;
       z-index: 1;
     }
 
-    .mic-icon {
-      position: relative;
-      z-index: 2;
-      width: 48px;
-      height: 48px;
-      background: #121212;
-      color: #f4f1ea;
+    /* Red REC pill badge */
+    .mic-rec-pill {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      background: #e34838;
+      color: #ffffff;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      padding: 2px 6px;
       border-radius: 2px;
-      display: grid;
-      place-items: center;
-      font-size: 20px;
+      border: 1px solid #111111;
+      display: none;
+      z-index: 4;
+      box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Active Recording State: Lively wave dance, acoustic pulse, glowing borders */
+    .mic-record-badge.is-recording {
+      border-color: #e34838;
+      box-shadow: 0 0 20px rgba(227, 72, 56, 0.6), 0 0 30px rgba(216, 241, 27, 0.4);
+      animation: micBadgePulse 1.2s infinite alternate ease-in-out;
+    }
+
+    .mic-record-badge.is-recording .mic-wave-anim-overlay {
+      opacity: 1;
+    }
+
+    .mic-record-badge.is-recording .wbar {
+      animation: micWaveDance 0.75s infinite ease-in-out alternate;
+    }
+
+    .mic-record-badge.is-recording .wb-1 { animation-delay: 0.0s; }
+    .mic-record-badge.is-recording .wb-2 { animation-delay: 0.15s; }
+    .mic-record-badge.is-recording .wb-3 { animation-delay: 0.3s; }
+    .mic-record-badge.is-recording .wb-4 { animation-delay: 0.45s; }
+    .mic-record-badge.is-recording .wb-5 { animation-delay: 0.25s; }
+    .mic-record-badge.is-recording .wb-6 { animation-delay: 0.1s; }
+
+    .mic-record-badge.is-recording .mic-rec-ripple {
+      animation: micRippleExpand 1.4s infinite cubic-bezier(0.2, 0.8, 0.4, 1);
+    }
+
+    .mic-record-badge.is-recording .mic-rec-pill {
+      display: block;
+      animation: recBlink 0.8s infinite alternate;
+    }
+
+    @keyframes micWaveDance {
+      0% { transform: scaleY(0.25); opacity: 0.7; }
+      50% { transform: scaleY(1.4); opacity: 1; filter: drop-shadow(0 0 6px rgba(216, 241, 27, 0.9)); }
+      100% { transform: scaleY(0.4); opacity: 0.8; }
+    }
+
+    @keyframes micBadgePulse {
+      0% { transform: scale(1); border-color: #e34838; }
+      100% { transform: scale(1.05); border-color: var(--lime); }
+    }
+
+    @keyframes micRippleExpand {
+      0% { transform: scale(0.98); opacity: 0.9; border-color: #e34838; }
+      50% { border-color: var(--lime); }
+      100% { transform: scale(1.35); opacity: 0; border-color: var(--lime); }
+    }
+
+    @keyframes recBlink {
+      0% { opacity: 1; }
+      100% { opacity: 0.4; }
     }
 
     .record-btn-text {
@@ -2558,12 +2679,32 @@
 
               <div class="drop-zone" id="quickDropZone">
                 <div>
-                  <div class="mic-collage-wrap">
-                    <div class="mic-lime-disc"></div>
-                    <div class="mic-icon" id="quickMicIcon">🎙</div>
+                  <div class="mic-record-badge" id="quickMicBadge" role="button" tabindex="0" title="Click to Record Microphone">
+                    <img src="/static/mic-wave.png" alt="Microphone Record" class="mic-badge-art" id="quickMicImg" />
+                    <div class="mic-wave-anim-overlay" id="quickLiveWaves" aria-hidden="true">
+                      <div class="wave-wing left">
+                        <span class="wbar wb-1"></span>
+                        <span class="wbar wb-2"></span>
+                        <span class="wbar wb-3"></span>
+                        <span class="wbar wb-4"></span>
+                        <span class="wbar wb-5"></span>
+                        <span class="wbar wb-6"></span>
+                      </div>
+                      <div class="wave-wing right">
+                        <span class="wbar wb-6"></span>
+                        <span class="wbar wb-5"></span>
+                        <span class="wbar wb-4"></span>
+                        <span class="wbar wb-3"></span>
+                        <span class="wbar wb-2"></span>
+                        <span class="wbar wb-1"></span>
+                      </div>
+                    </div>
+                    <div class="mic-rec-ripple"></div>
+                    <div class="mic-rec-pill">LIVE REC</div>
                   </div>
                   <div class="record-btn-text" id="quickRecLabel">CLICK TO RECORD</div>
-                  <div class="drop-text">or drag &amp; drop audio file</div>
+                  <div class="rec-timer" id="quickRecTimer" style="display: none; margin: 3px 0 2px; font-size: 12px; color: var(--red); font-family: var(--font-mono); font-weight: 700;">● 00:00</div>
+                  <div class="drop-text" id="quickDropText">or drag &amp; drop audio file</div>
                 </div>
               </div>
 
@@ -2609,11 +2750,28 @@
 
             <div class="card vts-upload-card">
               <div class="vts-drop-box" id="vtsDropZone">
-                <div class="mic-collage-wrap" style="margin-bottom: 12px;">
-                  <div class="mic-lime-disc"></div>
-                  <button class="record-main-btn" id="vtsRecordBtn" type="button" title="Click to Record">
-                    🎙
-                  </button>
+                <div class="mic-record-badge" id="vtsMicBadge" role="button" tabindex="0" title="Click to Record Microphone" style="margin-bottom: 12px;">
+                  <img src="/static/mic-wave.png" alt="Microphone Record" class="mic-badge-art" id="vtsMicImg" />
+                  <div class="mic-wave-anim-overlay" id="vtsLiveWaves" aria-hidden="true">
+                    <div class="wave-wing left">
+                      <span class="wbar wb-1"></span>
+                      <span class="wbar wb-2"></span>
+                      <span class="wbar wb-3"></span>
+                      <span class="wbar wb-4"></span>
+                      <span class="wbar wb-5"></span>
+                      <span class="wbar wb-6"></span>
+                    </div>
+                    <div class="wave-wing right">
+                      <span class="wbar wb-6"></span>
+                      <span class="wbar wb-5"></span>
+                      <span class="wbar wb-4"></span>
+                      <span class="wbar wb-3"></span>
+                      <span class="wbar wb-2"></span>
+                      <span class="wbar wb-1"></span>
+                    </div>
+                  </div>
+                  <div class="mic-rec-ripple"></div>
+                  <div class="mic-rec-pill">LIVE REC</div>
                 </div>
                 <div class="record-btn-text" id="vtsStatusLabel">CLICK TO RECORD</div>
                 <div class="drop-text" id="vtsUploadText">or drag &amp; drop audio file</div>
