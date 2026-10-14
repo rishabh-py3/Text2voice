@@ -761,7 +761,7 @@
 
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
       let animId = null;
-      const bars = badgeEl.querySelectorAll(".mbar");
+      const bars = badgeEl.querySelectorAll(".svg-wave-bar, .mbar");
 
       function renderFrame() {
         analyser.getByteFrequencyData(dataArray);

@@ -1259,22 +1259,22 @@
       background: rgba(216, 241, 27, 0.12);
     }
 
-    /* Studio Microphone Record Badge (Unified Mic + Animated Soundwaves) */
+    /* Studio Microphone Record Badge (Perfect Square & Centered Border) */
     .mic-record-badge {
       position: relative;
-      width: 104px;
-      height: 78px;
+      width: 76px;
+      height: 76px;
       margin: 0 auto 10px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 0 10px;
+      justify-content: center;
+      padding: 0;
       cursor: pointer;
       border-radius: 8px;
       background: #060606;
-      border: 2px solid #1c1c1c;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45), 3px 3px 0px rgba(0, 0, 0, 0.35);
-      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+      border: 2px solid #1a1a1a;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45), 3px 3px 0px rgba(0, 0, 0, 0.35);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
       overflow: visible;
       user-select: none;
     }
@@ -1285,57 +1285,26 @@
       box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55), 0 0 16px rgba(216, 241, 27, 0.4);
     }
 
-    /* Center Vintage Condenser Microphone */
-    .mic-center-graphic {
-      width: 32px;
-      height: 60px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      z-index: 2;
-    }
-
-    .mic-core-img {
+    .mic-svg-graphic {
       width: 100%;
       height: 100%;
-      object-fit: contain;
       display: block;
-      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
-      transition: transform 0.2s ease;
+      border-radius: 6px;
+      overflow: visible;
+      pointer-events: none;
     }
 
-    /* Flanking Soundwave Wings (Left and Right) */
-    .mic-wave-wing {
-      display: flex;
-      align-items: center;
-      gap: 2.8px;
-      height: 52px;
-      z-index: 2;
-    }
-
-    .mbar {
-      display: block;
-      width: 3.2px;
-      background: var(--lime);
-      border-radius: 3px;
-      box-shadow: 0 0 5px rgba(216, 241, 27, 0.7);
+    .svg-wave-bar {
+      fill: var(--lime);
+      transform-box: fill-box;
       transform-origin: center;
-      transition: transform 0.12s ease-out, filter 0.15s ease;
+      transition: transform 0.08s ease;
     }
-
-    /* Static resting bar heights matching the user's artwork proportions */
-    .mb-1 { height: 14px; }
-    .mb-2 { height: 22px; }
-    .mb-3 { height: 32px; }
-    .mb-4 { height: 48px; }
-    .mb-5 { height: 34px; }
-    .mb-6 { height: 20px; }
 
     /* Concentric acoustic ripple rings when recording */
     .mic-rec-ripple {
       position: absolute;
-      inset: -6px;
+      inset: -5px;
       border: 2px solid var(--lime);
       border-radius: 12px;
       opacity: 0;
@@ -1346,15 +1315,15 @@
     /* Red REC pill badge */
     .mic-rec-pill {
       position: absolute;
-      top: -8px;
-      right: -8px;
+      top: -7px;
+      right: -7px;
       background: #e34838;
       color: #ffffff;
       font-family: var(--font-mono);
-      font-size: 9px;
+      font-size: 8.5px;
       font-weight: 700;
       letter-spacing: 0.5px;
-      padding: 2px 6px;
+      padding: 2px 5px;
       border-radius: 2px;
       border: 1px solid #111111;
       display: none;
@@ -1365,28 +1334,26 @@
     /* Active Recording State */
     .mic-record-badge.is-recording {
       border-color: #e34838;
-      box-shadow: 0 0 20px rgba(227, 72, 56, 0.6), 0 0 30px rgba(216, 241, 27, 0.4);
+      box-shadow: 0 0 18px rgba(227, 72, 56, 0.6), 0 0 28px rgba(216, 241, 27, 0.35);
       animation: micBadgePulse 1.2s infinite alternate ease-in-out;
     }
 
-    .mic-record-badge.is-recording .mbar {
-      box-shadow: 0 0 10px rgba(216, 241, 27, 0.95);
-      animation: micWaveBounce 0.75s infinite ease-in-out alternate;
+    .mic-record-badge.is-recording .svg-wave-bar {
+      animation: svgWaveBounce 0.75s infinite ease-in-out alternate;
     }
 
-    .mic-record-badge.is-recording .mic-wave-wing.left .mb-1 { animation-delay: 0.0s; }
-    .mic-record-badge.is-recording .mic-wave-wing.left .mb-2 { animation-delay: 0.12s; }
-    .mic-record-badge.is-recording .mic-wave-wing.left .mb-3 { animation-delay: 0.24s; }
-    .mic-record-badge.is-recording .mic-wave-wing.left .mb-4 { animation-delay: 0.36s; }
-    .mic-record-badge.is-recording .mic-wave-wing.left .mb-5 { animation-delay: 0.20s; }
-    .mic-record-badge.is-recording .mic-wave-wing.left .mb-6 { animation-delay: 0.08s; }
-
-    .mic-record-badge.is-recording .mic-wave-wing.right .mb-6 { animation-delay: 0.08s; }
-    .mic-record-badge.is-recording .mic-wave-wing.right .mb-5 { animation-delay: 0.20s; }
-    .mic-record-badge.is-recording .mic-wave-wing.right .mb-4 { animation-delay: 0.36s; }
-    .mic-record-badge.is-recording .mic-wave-wing.right .mb-3 { animation-delay: 0.24s; }
-    .mic-record-badge.is-recording .mic-wave-wing.right .mb-2 { animation-delay: 0.12s; }
-    .mic-record-badge.is-recording .mic-wave-wing.right .mb-1 { animation-delay: 0.0s; }
+    .mic-record-badge.is-recording .sb-1,
+    .mic-record-badge.is-recording .sb-12 { animation-delay: 0.0s; }
+    .mic-record-badge.is-recording .sb-2,
+    .mic-record-badge.is-recording .sb-11 { animation-delay: 0.12s; }
+    .mic-record-badge.is-recording .sb-3,
+    .mic-record-badge.is-recording .sb-10 { animation-delay: 0.22s; }
+    .mic-record-badge.is-recording .sb-4,
+    .mic-record-badge.is-recording .sb-9  { animation-delay: 0.32s; }
+    .mic-record-badge.is-recording .sb-5,
+    .mic-record-badge.is-recording .sb-8  { animation-delay: 0.44s; }
+    .mic-record-badge.is-recording .sb-6,
+    .mic-record-badge.is-recording .sb-7  { animation-delay: 0.20s; }
 
     .mic-record-badge.is-recording .mic-rec-ripple {
       animation: micRippleExpand 1.4s infinite cubic-bezier(0.2, 0.8, 0.4, 1);
@@ -1397,15 +1364,10 @@
       animation: recBlink 0.8s infinite alternate;
     }
 
-    .mic-record-badge.is-recording .mic-core-img {
-      transform: scale(1.06);
-      filter: drop-shadow(0 0 10px rgba(216, 241, 27, 0.5));
-    }
-
-    @keyframes micWaveBounce {
-      0% { transform: scaleY(0.4); opacity: 0.75; }
-      50% { transform: scaleY(1.45); opacity: 1; filter: drop-shadow(0 0 8px rgba(216, 241, 27, 0.95)); }
-      100% { transform: scaleY(0.55); opacity: 0.85; }
+    @keyframes svgWaveBounce {
+      0% { transform: scaleY(0.45); }
+      50% { transform: scaleY(1.4); filter: drop-shadow(0 0 6px rgba(216, 241, 27, 0.9)); }
+      100% { transform: scaleY(0.6); }
     }
 
     @keyframes micBadgePulse {
@@ -1417,6 +1379,11 @@
       0% { transform: scale(0.98); opacity: 0.9; border-color: #e34838; }
       50% { border-color: var(--lime); }
       100% { transform: scale(1.35); opacity: 0; border-color: var(--lime); }
+    }
+
+    @keyframes recBlink {
+      0% { opacity: 1; }
+      100% { opacity: 0.4; }
     }
 
     @keyframes recBlink {
@@ -2689,25 +2656,23 @@
               <div class="drop-zone" id="quickDropZone">
                 <div>
                   <div class="mic-record-badge" id="quickMicBadge" role="button" tabindex="0" title="Click to Record Microphone">
-                    <div class="mic-wave-wing left">
-                      <span class="mbar mb-1"></span>
-                      <span class="mbar mb-2"></span>
-                      <span class="mbar mb-3"></span>
-                      <span class="mbar mb-4"></span>
-                      <span class="mbar mb-5"></span>
-                      <span class="mbar mb-6"></span>
-                    </div>
-                    <div class="mic-center-graphic">
-                      <img src="/static/mic-icon-core.png" alt="Microphone Record" class="mic-core-img" id="quickMicImg" />
-                    </div>
-                    <div class="mic-wave-wing right">
-                      <span class="mbar mb-6"></span>
-                      <span class="mbar mb-5"></span>
-                      <span class="mbar mb-4"></span>
-                      <span class="mbar mb-3"></span>
-                      <span class="mbar mb-2"></span>
-                      <span class="mbar mb-1"></span>
-                    </div>
+                    <svg viewBox="0 0 1024 1024" width="100%" height="100%" class="mic-svg-graphic" aria-hidden="true">
+                      <image href="/static/mic-icon-core.png" x="375" y="257" width="274" height="494" preserveAspectRatio="xMidYMid meet" />
+                      <g class="svg-waves-layer">
+                        <rect class="svg-wave-bar sb-1" x="145" y="462" width="21" height="51" rx="10" />
+                        <rect class="svg-wave-bar sb-2" x="178" y="427" width="19" height="123" rx="9.5" />
+                        <rect class="svg-wave-bar sb-3" x="210" y="452" width="21" height="72" rx="10" />
+                        <rect class="svg-wave-bar sb-4" x="245" y="376" width="26" height="217" rx="12" />
+                        <rect class="svg-wave-bar sb-5" x="290" y="319" width="26" height="327" rx="12" />
+                        <rect class="svg-wave-bar sb-6" x="334" y="396" width="26" height="181" rx="12" />
+                        <rect class="svg-wave-bar sb-7" x="667" y="396" width="26" height="181" rx="12" />
+                        <rect class="svg-wave-bar sb-8" x="712" y="319" width="25" height="327" rx="12" />
+                        <rect class="svg-wave-bar sb-9" x="755" y="379" width="26" height="214" rx="12" />
+                        <rect class="svg-wave-bar sb-10" x="794" y="452" width="20" height="72" rx="10" />
+                        <rect class="svg-wave-bar sb-11" x="827" y="427" width="19" height="123" rx="9.5" />
+                        <rect class="svg-wave-bar sb-12" x="859" y="462" width="20" height="51" rx="10" />
+                      </g>
+                    </svg>
                     <div class="mic-rec-ripple"></div>
                     <div class="mic-rec-pill">LIVE REC</div>
                   </div>
@@ -2760,25 +2725,23 @@
             <div class="card vts-upload-card">
               <div class="vts-drop-box" id="vtsDropZone">
                 <div class="mic-record-badge" id="vtsMicBadge" role="button" tabindex="0" title="Click to Record Microphone" style="margin-bottom: 12px;">
-                  <div class="mic-wave-wing left">
-                    <span class="mbar mb-1"></span>
-                    <span class="mbar mb-2"></span>
-                    <span class="mbar mb-3"></span>
-                    <span class="mbar mb-4"></span>
-                    <span class="mbar mb-5"></span>
-                    <span class="mbar mb-6"></span>
-                  </div>
-                  <div class="mic-center-graphic">
-                    <img src="/static/mic-icon-core.png" alt="Microphone Record" class="mic-core-img" id="vtsMicImg" />
-                  </div>
-                  <div class="mic-wave-wing right">
-                    <span class="mbar mb-6"></span>
-                    <span class="mbar mb-5"></span>
-                    <span class="mbar mb-4"></span>
-                    <span class="mbar mb-3"></span>
-                    <span class="mbar mb-2"></span>
-                    <span class="mbar mb-1"></span>
-                  </div>
+                  <svg viewBox="0 0 1024 1024" width="100%" height="100%" class="mic-svg-graphic" aria-hidden="true">
+                    <image href="/static/mic-icon-core.png" x="375" y="257" width="274" height="494" preserveAspectRatio="xMidYMid meet" />
+                    <g class="svg-waves-layer">
+                      <rect class="svg-wave-bar sb-1" x="145" y="462" width="21" height="51" rx="10" />
+                      <rect class="svg-wave-bar sb-2" x="178" y="427" width="19" height="123" rx="9.5" />
+                      <rect class="svg-wave-bar sb-3" x="210" y="452" width="21" height="72" rx="10" />
+                      <rect class="svg-wave-bar sb-4" x="245" y="376" width="26" height="217" rx="12" />
+                      <rect class="svg-wave-bar sb-5" x="290" y="319" width="26" height="327" rx="12" />
+                      <rect class="svg-wave-bar sb-6" x="334" y="396" width="26" height="181" rx="12" />
+                      <rect class="svg-wave-bar sb-7" x="667" y="396" width="26" height="181" rx="12" />
+                      <rect class="svg-wave-bar sb-8" x="712" y="319" width="25" height="327" rx="12" />
+                      <rect class="svg-wave-bar sb-9" x="755" y="379" width="26" height="214" rx="12" />
+                      <rect class="svg-wave-bar sb-10" x="794" y="452" width="20" height="72" rx="10" />
+                      <rect class="svg-wave-bar sb-11" x="827" y="427" width="19" height="123" rx="9.5" />
+                      <rect class="svg-wave-bar sb-12" x="859" y="462" width="20" height="51" rx="10" />
+                    </g>
+                  </svg>
                   <div class="mic-rec-ripple"></div>
                   <div class="mic-rec-pill">LIVE REC</div>
                 </div>
