@@ -761,7 +761,7 @@
 
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
       let animId = null;
-      const bars = badgeEl.querySelectorAll(".wbar");
+      const bars = badgeEl.querySelectorAll(".mbar");
 
       function renderFrame() {
         analyser.getByteFrequencyData(dataArray);
@@ -772,7 +772,7 @@
         const voiceFactor = Math.min(2.0, Math.max(0.35, (avg / 32.0)));
         bars.forEach((bar, idx) => {
           const bin = (dataArray[idx % dataArray.length] || avg) / 255.0;
-          const scale = Math.max(0.3, Math.min(1.95, 0.35 + bin * 1.4 + (voiceFactor * 0.25)));
+          const scale = Math.max(0.35, Math.min(2.0, 0.4 + bin * 1.45 + (voiceFactor * 0.25)));
           bar.style.transform = `scaleY(${scale.toFixed(2)})`;
         });
 
